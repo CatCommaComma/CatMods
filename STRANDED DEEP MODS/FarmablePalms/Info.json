@@ -1,0 +1,8 @@
+﻿{
+    "Id": "FarmablePalms",
+    "DisplayName": "Farmable Palms",
+    "Author": "cat,,",
+    "Version": "1.0.4",
+    "AssemblyName": "FarmablePalms.dll",
+    "EntryMethod": "FarmablePalms.Main.Load"
+}

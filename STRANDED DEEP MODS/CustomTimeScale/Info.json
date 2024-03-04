@@ -1,0 +1,9 @@
+﻿{
+    "Id": "CustomDays",
+    "DisplayName": "Custom Days",
+    "Author": "Cat,,",
+    "Version": "1.1.0",
+    "AssemblyName": "CustomTimeScale.dll",
+    "EntryMethod": "CustomDays.Main.Load",
+    "HomePage": "https://www.nexusmods.com/strandeddeep/mods/193"
+}
