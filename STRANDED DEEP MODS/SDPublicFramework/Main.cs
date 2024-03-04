@@ -8,7 +8,6 @@ using HarmonyLib;
 using Beam.Utilities;
 using Beam.Utilities.Reflection;
 
-//warn to make sure to use line "LoadAfter": ["SDPublicFramework"], in info.json
 namespace SDPublicFramework
 {
     public class Main

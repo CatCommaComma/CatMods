@@ -57,7 +57,7 @@ namespace SDPublicFramework
         {
             if (!_frameworkInitialized)
             {
-                Logger.Exception("Framework isn't ready for registration.");
+                Logger.Exception("Framework isn't ready for registration. Make sure you have the line '\"LoadAfter\": [\"SDPublicFramework\"],' added in your info.json file.");
                 return;
             }
             _registeredPaths.Add(path);
