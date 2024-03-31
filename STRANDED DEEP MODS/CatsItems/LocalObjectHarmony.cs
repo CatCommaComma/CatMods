@@ -245,22 +245,25 @@ namespace CatsItems
             {
                 if (__instance.PrefabId == 408U)
                 {
-                    BaseObject cannedBeans = UnityEngine.Object.Instantiate(PrefabFactory.InstantiateModdedObject(411U));
+                    BaseObject cannedBeans = PrefabFactory.InstantiateModdedObject(411U);
 
-                    cannedBeans.transform.position = __instance.transform.position;
-                    cannedBeans.transform.rotation = __instance.transform.rotation;
+                    if (cannedBeans != null)
+                    {
+                        cannedBeans.transform.position = __instance.transform.position;
+                        cannedBeans.transform.rotation = __instance.transform.rotation;
 
-                    InteractiveObject interactiveObject = cannedBeans as InteractiveObject;
+                        InteractiveObject interactiveObject = cannedBeans as InteractiveObject;
 
-                    MultiplayerMng.Destroy(__instance, DestroyDelay.SAFE);
+                        MultiplayerMng.Destroy(__instance, DestroyDelay.SAFE);
 
-                    interactiveObject.ReferenceId = new MiniGuid();
-                    cannedBeans.gameObject.SetActive(true);
+                        interactiveObject.ReferenceId = new MiniGuid();
+                        cannedBeans.gameObject.SetActive(true);
 
-                    AudioManager.GetAudioPlayer().Play2D(BasicSounds.BreakSound, AudioMixerChannels.Voice, AudioPlayMode.Single);
+                        AudioManager.GetAudioPlayer().Play2D(BasicSounds.BreakSound, AudioMixerChannels.Voice, AudioPlayMode.Single);
 
-                    interactiveObject.enabled = true;
-                    interactiveObject.EnablePhysics();
+                        interactiveObject.enabled = true;
+                        interactiveObject.EnablePhysics();
+                    }
 
                     return false;
                 }

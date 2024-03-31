@@ -2,7 +2,7 @@
     "Id": "CatsItems",
     "DisplayName": "Cat's Items",
     "Author": "cat,,",
-    "Version": "0.03.06",
+    "Version": "0.04.03",
     "LoadAfter": [ "SDPublicFramework" ],
     "AssemblyName": "CatsItems.dll",
     "EntryMethod": "CatsItems.Main.Load"
