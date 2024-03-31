@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System;
 using System.IO;
 using HarmonyLib;
+using Beam;
 
 namespace CatsItems
 {
@@ -15,8 +16,14 @@ namespace CatsItems
 
     public static class Main
     {
+        public static CatItemsSettings Settings { get { return _settings; } }
+
         private static bool Load(UnityModManager.ModEntry modEntry)
         {
+            _settings = UnityModManager.ModSettings.Load<CatItemsSettings>(modEntry);
+            modEntry.OnGUI = new Action<UnityModManager.ModEntry>(_settings.OnGUI);
+            modEntry.OnSaveGUI = new Action<UnityModManager.ModEntry>(_settings.Save);
+
             Dictionary<uint, Type> customTypes = new Dictionary<uint, Type>()
             {
                 { 405U, typeof(Cat_Bucket)},
@@ -78,6 +85,6 @@ namespace CatsItems
             }
         }
 
-        public static KeyCode TurnOnGoggleLightKey = KeyCode.X;
+        private static CatItemsSettings _settings;
     }
 }

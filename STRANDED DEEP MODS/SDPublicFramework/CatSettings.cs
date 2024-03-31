@@ -17,7 +17,12 @@ namespace SDPublicFramework
 
         public void OnGUI(UnityModManager.ModEntry modEntry)
         {
-            Main.ChangingUnequipKey = GUILayout.Toggle(Main.ChangingUnequipKey, "Change the unequip key.", new GUILayoutOption[0]);
+            _changingUnequipKey = GUILayout.Toggle(_changingUnequipKey, "Change the unequip key.", new GUILayoutOption[0]);
+            if (_changingUnequipKey)
+            {
+                GUILayout.Label("Press the button that will be your new unequip key (Esc to cancel).");
+                UnequipApparelKey = CatUtility.ChooseNewKey(ref _changingUnequipKey, UnequipApparelKey);
+            }
             GUILayout.Label("Current unequip key: " + UnequipApparelKey);
             GUILayout.Label("");
 
@@ -26,6 +31,7 @@ namespace SDPublicFramework
             if (PrefabDebugger)
             {
                 GUILayout.Label("SDPF TOOLS");
+                GUILayout.Label("Leaving this menu on and saving UMM will enter debug mode - a few additional things will be logged to player.log");
                 GUILayout.Label("");
                 GetCurrentPrefab = GUILayout.Toggle(GetCurrentPrefab, "Get currently held prefab as chosen prefab.", new GUILayoutOption[0]);
                 GetCurrentRaycastedPrefab = GUILayout.Toggle(GetCurrentRaycastedPrefab, "Get currently raycasted prefab as base prefab.", new GUILayoutOption[0]);
@@ -71,6 +77,8 @@ namespace SDPublicFramework
         [Draw("Adjust prefabs", Collapsible = true)] public PrefabAdjuster PrefabAdjuster = new PrefabAdjuster();
 
         public bool InstantiatePrefab;
+
+        private static bool _changingUnequipKey = false;
     }
 
     [DrawFields(DrawFieldMask.Public)]

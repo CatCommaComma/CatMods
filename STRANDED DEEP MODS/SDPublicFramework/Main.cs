@@ -31,7 +31,6 @@ namespace SDPublicFramework
 
         internal static Dictionary<Enum, DescriptionAttribute> CustomDescriptionAttributes { get { return _customDescriptionAttributes; } }
         internal static CatSettings ModSettings { get { return _settings; } }
-        internal static bool ChangingUnequipKey { get; set; }
 
         private static bool Load(UnityModManager.ModEntry modEntry)
         {
@@ -39,8 +38,6 @@ namespace SDPublicFramework
             modEntry.OnGUI = new Action<UnityModManager.ModEntry>(_settings.OnGUI);
             modEntry.OnSaveGUI = new Action<UnityModManager.ModEntry>(_settings.Save);
             modEntry.OnUpdate = new Action<UnityModManager.ModEntry, float>(Main.OnUpdate);
-
-            ChangingUnequipKey = false;
 
             Harmony harmony = new Harmony(modEntry.Info.Id);
 
@@ -66,11 +63,6 @@ namespace SDPublicFramework
             if ((Game.State == GameState.LOAD_GAME || Game.State == GameState.NEW_GAME))
             {
                 if (Input.GetKeyDown(_settings.UnequipApparelKey)) EquippableSystem.UnequipAll();
-            }
-
-            if (ChangingUnequipKey)
-            {
-                _settings.UnequipApparelKey = CatUtility.ChooseNewKey();
             }
         }
 

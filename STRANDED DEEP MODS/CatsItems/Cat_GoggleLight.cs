@@ -36,7 +36,7 @@ namespace CatsItems
             {
                 transform.position = _player.PlayerCamera.transform.position;
 
-                if (Input.GetKeyDown(Main.TurnOnGoggleLightKey))
+                if (Input.GetKeyDown(Main.Settings.ToggleGogglesKey))
                 {
                     if (!_lightTurnedOn && _flashlightLight != null)
                     {

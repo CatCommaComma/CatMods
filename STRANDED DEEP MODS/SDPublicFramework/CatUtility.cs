@@ -97,7 +97,7 @@ namespace SDPublicFramework
             }
         }
 
-        internal static KeyCode ChooseNewKey()
+        public static KeyCode ChooseNewKey(ref bool changing, KeyCode original)
         {
             var allKeys = Enum.GetValues(typeof(KeyCode)).Cast<KeyCode>();
 
@@ -105,11 +105,13 @@ namespace SDPublicFramework
             {
                 if (Input.GetKeyDown(key))
                 {
-                    Main.ChangingUnequipKey = false;
+                    changing = false;
+
+                    if (key == KeyCode.Escape) return original;
                     return key;
                 }
             }
-            return default;
+            return original;
         }
 
         internal static void HandlePrefabDebugger(CatSettings debugger, PrefabAdjuster adjuster)
