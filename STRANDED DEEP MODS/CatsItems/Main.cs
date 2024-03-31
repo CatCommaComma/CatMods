@@ -9,6 +9,10 @@ using HarmonyLib;
 
 namespace CatsItems
 {
+    //pocket knife looks where it should
+    //New air tank works
+    //skinning sharks for the final time does not break the game anymore
+
     public static class Main
     {
         private static bool Load(UnityModManager.ModEntry modEntry)
@@ -41,7 +45,37 @@ namespace CatsItems
             Framework.IncludeIConsumableSound(407U, LocalEmbeddedAudio.MorphineInjectionSound);
             Framework.IncludeIConsumableSound(409U, LocalEmbeddedAudio.PopPillsSound);
 
+            Framework.OnFrameworkFinished += OnFrameworkDone;
             return true;
+        }
+
+        public static void OnFrameworkDone()
+        {
+            SetupNewAirTank();
+            Framework.OnFrameworkFinished -= OnFrameworkDone;
+        }
+
+        private static void SetupNewAirTank()
+        {
+            try
+            {
+                GameObject newModel = Framework.LoadFromAssetBundles("modded_airtube");
+                GameObject originalModel = Framework.GetModdedPrefab(426U);
+
+                PrefabFactory.SetupShaders(newModel);
+                MeshRenderer newRenderer = newModel.GetComponent<MeshRenderer>();
+                MeshFilter newMesh = newModel.GetComponent<MeshFilter>();
+
+                for (int i=0; i<originalModel.transform.childCount; i++)
+                {
+                    originalModel.transform.GetChild(i).GetComponent<MeshRenderer>().sharedMaterials = newRenderer.sharedMaterials;
+                    originalModel.transform.GetChild(i).GetComponent<MeshFilter>().mesh = newMesh.mesh;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.Log(ex); 
+            }
         }
 
         public static KeyCode TurnOnGoggleLightKey = KeyCode.X;

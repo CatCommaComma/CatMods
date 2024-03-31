@@ -14,6 +14,8 @@ using Beam.Utilities;
 using Beam.Events;
 using System.Linq;
 using UnityModManagerNet;
+using Beam.Developer;
+using Beam.Developer.UI;
 
 namespace SDPublicFramework
 {
@@ -685,6 +687,49 @@ namespace SDPublicFramework
                     _executingDelayedPlaceActionRef(__instance) = true;
                 }
                 return false;
+            }
+            return true;
+        }
+    }
+
+    //spawning modded items through developer console
+    [HarmonyPatch(typeof(TestingConsole), nameof(TestingConsole.Initialize))]
+    class TestingConsole_Initialize_Patch
+    {
+        private static void Postfix(ITestingConsoleViewAdapter view, TestingConsole __instance)
+        {
+            foreach (KeyValuePair<uint, GameObject> moddedObject in Framework._moddedPrefabs)
+            {
+                UPrefabListElement uprefabListElement = UnityEngine.Object.Instantiate<UPrefabListElement>(view.PrefabListElementPrefab);
+                uprefabListElement.transform.SetParent(view.PrefabListContainer.transform, false);
+                uprefabListElement.Text.text = moddedObject.Value.name;
+                uprefabListElement.Prefab = moddedObject.Value;
+                uprefabListElement.Click += __instance.PrefabElementButton_Click;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(DeveloperMode), nameof(DeveloperMode.Create), new Type[] {typeof(GameObject), typeof(float)})]
+    class DeveloperMode_Create_Patch
+    {
+        private static bool Prefix(GameObject prefab, float offset = 0f)
+        {
+
+            if (prefab != null)
+            {
+                if (prefab.GetComponent<BaseObject>()?.PrefabId >= 400U)
+                {
+                    BaseObject spawnedObject = PrefabFactory.InstantiateModdedObject(prefab.name);
+
+                    Vector3 forward = Camera.main.transform.forward;
+                    forward.y = 0f;
+                    forward.Normalize();
+                    Vector3 vector = PlayerRegistry.LocalPlayer.transform.position + forward + Vector3.up * offset;
+
+                    spawnedObject.transform.position = vector;
+
+                    return false;
+                }
             }
             return true;
         }

@@ -8,6 +8,21 @@ using HarmonyLib;
 using Beam.Utilities;
 using Beam.Utilities.Reflection;
 
+//1.0
+//show equipped items in inventory UI -
+//fishies
+//modded items get highlighted
+//lod control
+//generate items on land by given parameters -
+
+//4.0.3:
+//initial load might take more but the rest of the game is significantly faster
+//better functionality for using vanilla items for modded framework
+//i don't remember what i changed
+//log all information of raycasted gameobject in player.log
+//you can spawn stuff from vanilla developer console
+
+//TO DO ATLEAST: vanilla, construction
 namespace SDPublicFramework
 {
     public class Main

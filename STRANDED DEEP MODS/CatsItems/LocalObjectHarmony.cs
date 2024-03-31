@@ -147,7 +147,6 @@ namespace CatsItems
                     if ((obj as Cat_Bucket).IsSalty)
                     {
                         CatUtility.PopNotification("Cannot fill plot with salty water!", 4f);
-
                         return false;
                     }
                 }
@@ -172,7 +171,7 @@ namespace CatsItems
 
                 if (!heldObject.IsNullOrDestroyed())
                 {
-                    if (heldObject.gameObject.name == "mod_cknife")
+                    if (heldObject.PrefabId == 403U)
                     {
                         if (obj.IsNullOrDestroyed() || _currentSkinnableRef(__instance).IsValid())
                         {
@@ -197,11 +196,21 @@ namespace CatsItems
         /*[HarmonyPatch(typeof(EventItemProxies), nameof(EventItemProxies.GetProxy), new Type[] {typeof(CraftingType)})]
         class EventItemProxies_GetProxy_Patch
         {
+            private static GameObject _pocketKnifeProxy;
+
             private static void Postfix(EventItemProxies __instance, ref GameObject __result, CraftingType type)
             {
+                /*if (PlayerRegistry.LocalPlayer.Holder.CurrentObject.PrefabId == 403U)
+                {
+                    if (_pocketKnifeProxy  == null)
+                    {
+                        _pocketKnifeProxy = PrefabFactory.InstantiateModdedObject(403U, false).gameObject;
+                    }
+
+                    __result = _pocketKnifeProxy;
+                }
             }
         }*/
-
 
         //for hiding knife blade
         [HarmonyPatch(typeof(InteractiveObject), nameof(InteractiveObject.SetLOD), new Type[] { typeof(int) })]
@@ -252,7 +261,6 @@ namespace CatsItems
 
                     interactiveObject.enabled = true;
                     interactiveObject.EnablePhysics();
-                    interactiveObject.DisplayName = "Opened canned beans";
 
                     return false;
                 }
@@ -446,19 +454,17 @@ namespace CatsItems
             {
                 if (_location != default)
                 {
-                    BaseObject sharkFin = PrefabFactory.InstantiateModdedObject("modded_sharkfin");
-                    sharkFin.gameObject.SetActive(false);
+                    BaseObject sharkFin = PrefabFactory.InstantiateModdedObject(417U, true);
+                    if (sharkFin != null)
+                    {
+                        sharkFin.ReferenceId = new MiniGuid();
 
-                    sharkFin.DisplayName = "Shark fin";
-                    sharkFin.ReferenceId = new MiniGuid();
+                        _location.y += 1.6f;
+                        sharkFin.transform.position = _location;
+                        sharkFin.transform.rotation = default;
 
-                    _location.y += 1.6f;
-                    sharkFin.transform.position = _location;
-                    sharkFin.transform.rotation = default;
-
-                    sharkFin.gameObject.SetActive(true);
-
-                    _location = default;
+                        _location = default;
+                    }
                 }
             }
 

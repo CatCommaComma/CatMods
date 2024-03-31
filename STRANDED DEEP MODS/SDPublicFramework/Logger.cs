@@ -4,7 +4,7 @@ namespace SDPublicFramework
 {
     public static class Logger
     {
-        public static void Log(string message)
+        public static void Log(string message = "")
         {
             Debug.Log($"[SDPublicFramework] {message}");
         }

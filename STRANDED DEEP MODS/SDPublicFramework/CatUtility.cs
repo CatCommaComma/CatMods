@@ -1,9 +1,11 @@
 ﻿using Beam;
 using Beam.UI;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
 
@@ -156,7 +158,7 @@ namespace SDPublicFramework
                             ChosenPrefabCraftingType[0] = (int)ChosenBaseObject.CraftingType.AttributeType;
                             ChosenPrefabCraftingType[1] = (int)ChosenBaseObject.CraftingType.InteractiveType;
 
-                            FindObjectInfo(ChosenPrefab);
+                            FindObjectInfo(ChosenPrefab == null? ChosenBaseObject : ChosenPrefab);
                         }
                         catch
                         {
@@ -230,6 +232,117 @@ namespace SDPublicFramework
                 }
                 adjuster.UpdatePrefabInfo = false;
             }
+
+            if (debugger.LogAllInformation)
+            {
+                GameObject prefab; //= PlayerRegistry.LocalPlayer.GameInput.Raycaster.CurrentObject.gameObject;
+                RaycastHit hit;
+                Physics.Raycast(PlayerRegistry.LocalPlayer.PlayerCamera.transform.position, PlayerRegistry.LocalPlayer.PlayerCamera.transform.forward, out hit, 15f);
+
+                if (hit.collider == null)
+                {
+                    Logger.Exception("Log information: Raycast did not hit anything.");
+                    debugger.LogAllInformation = false;
+                    return;
+                }
+
+                prefab = hit.collider.gameObject;
+
+                try
+                {
+                    Logger.Log();
+                    Logger.Log("---------------------------------------------");
+                    Logger.Log($"ANALYZING PREFAB OF NAME '{prefab.name}':");
+                    Logger.Log("----------------- HERITAGE ------------------");
+                    Logger.Log();
+                    PrintHeritage(prefab.transform, 0);
+                    Logger.Log();
+                    Logger.Log("---------------- COMPONENTS -----------------");
+                    PrintComponents(prefab);
+                    Logger.Log();
+                    Logger.Log("---------------------------------------------");
+                    Logger.Log();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Exception("Error during log all info: " + ex);
+                }
+
+                debugger.LogAllInformation = false;
+            }
+        }
+
+        public static List<Component> GetAllComponentsOfType(Transform parent, Type type)
+        {
+            //_returnedComponents.Clear();
+            _returnedComponents = new List<Component>();
+
+            GetComponentOfType(parent, type);
+
+            return _returnedComponents;
+        }
+
+        private static void GetComponentOfType(Transform parent, Type type)
+        {
+            Component comp = parent.GetComponent(type);
+            if (comp != null) _returnedComponents.Add(comp);
+
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                GetComponentOfType(parent.GetChild(i), type);
+            }
+        }
+
+        private static List<Component> _returnedComponents = new List<Component>();
+
+        public static void PrintHeritage(Transform parent, int depth)
+        {
+            int childCount = parent.childCount;
+            string depthStr = "";
+
+            for (int i=0;i<depth;i++) depthStr += " ";
+
+            for (int i=0;i<childCount;i++)
+            {
+                Logger.Log(depthStr + parent.GetChild(i).name);
+                PrintHeritage(parent.GetChild(i), depth + 1);
+            }
+        }
+
+        public static void PrintComponents(GameObject prefab)
+        {
+            Component[] components = prefab.GetComponents<Component>();
+            foreach (Component c in components)
+            {
+                Logger.Log();
+                Logger.Log("----- Deepest type name: " + c.GetType().Name + " -----");
+
+                PrintFields(c.GetType(), c);
+                Type baseType = c.GetType().BaseType;
+
+                while(baseType != null && baseType != typeof(Component) && baseType != typeof(MonoBehaviour))
+                {
+                    Logger.Log();
+                    Logger.Log("Inherited type name: " + baseType.Name);
+                    PrintFields(baseType, c);
+                    baseType = baseType.BaseType;
+                }
+            }
+        }
+
+        public static void PrintFields(Type type, object instance)
+        {
+            FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            foreach (var f in fields)
+            {
+                object value = f.GetValue(instance);
+
+                StringBuilder stringBuilder = new StringBuilder("");
+                stringBuilder.Append($"Field: {f.Name}");
+                stringBuilder.Append($", Value: {value}");
+
+                Logger.Log(stringBuilder.ToString());
+            }
         }
 
         private static string GetFolder(InteractiveObjectClassification classification)
@@ -255,17 +368,18 @@ namespace SDPublicFramework
             return "";
         }
 
-        private static void FindObjectInfo(InteractiveObject interactiveObject)
+        private static void FindObjectInfo(BaseObject baseObject)
         {
-            ChosenPrefabCraftingType[0] = (int)interactiveObject.CraftingType.AttributeType;
-            ChosenPrefabCraftingType[1] = (int)interactiveObject.CraftingType.InteractiveType;
+            ChosenPrefabCraftingType[0] = (int)baseObject.CraftingType.AttributeType;
+            ChosenPrefabCraftingType[1] = (int)baseObject.CraftingType.InteractiveType;
 
             if (!ChosenPrefabName.StartsWith(Framework.MODDED_ITEM_NAME_START))
             {
                 ChosenPrefabPrefabPath = "Prefabs/StrandedObjects/";
                 ChosenPrefabIconPath = "Icons/Medium/";
 
-                ChosenPrefabPrefabPath += GetFolder(interactiveObject.Classification);
+                if (baseObject as InteractiveObject != null) ChosenPrefabPrefabPath += GetFolder((baseObject as InteractiveObject).Classification);
+                else ChosenPrefabPrefabPath += "UNKNOWN_FOLDER/";
 
                 try
                 {
@@ -296,10 +410,10 @@ namespace SDPublicFramework
             {
                 try
                 {
-                    ChosenBaseObject = interactiveObject;
+                    ChosenBaseObject = baseObject;
                     ChosenBasePrefabName = ChosenBaseObject.name;
-                    ChosenPrefabPrefabPath = interactiveObject.name;
-                    ChosenPrefabIconPath = interactiveObject.name;
+                    ChosenPrefabPrefabPath = baseObject.name;
+                    ChosenPrefabIconPath = baseObject.name;
 
                     ChosenBasePrefabId = ChosenBaseObject.PrefabId;
                     ChosenBasePrefabMiniGuid = ChosenBaseObject.ReferenceId;

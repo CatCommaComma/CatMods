@@ -9,7 +9,7 @@ using System.Reflection;
 
 namespace SDPublicFramework
 {
-    public static partial class Framework
+    public static class Framework
     {
         public static bool FrameworkInitialized { get { return _frameworkInitialized; } }
 
@@ -26,7 +26,7 @@ namespace SDPublicFramework
         /// <summary> This is intended for non-custom-type consumables. Can be added any time.</summary>
         public static void IncludeIConsumableSound(uint itemId, AudioClip sound)
         {
-            if (_customClips.ContainsKey(itemId)) Logger.Warning($"Item of id '{itemId}' already has a sound linked to it.");
+            if (_customClips.ContainsKey(itemId)) Logger.Warning($"Item of id '{itemId}' already has a sound linked to it ({sound.name}).");
             _customClips.Add(itemId, new CustomSound(sound));
         }
 
@@ -44,12 +44,26 @@ namespace SDPublicFramework
             return null;
         }
 
+        public static GameObject LoadFromAssetBundles(string name)
+        {
+            foreach (AssetBundle bundle in AssetBundles)
+            {
+                if (bundle.Contains(name))
+                {
+                    return bundle.LoadAsset<GameObject>(name);
+                }
+            }
+
+            Logger.Warning($"Could not find object of name '{name}' in loaded asset bundles.");
+            return null;
+        }
+
         internal static void StartupFramework()
         {
             _frameworkInitialized = true;
             PrefabFactory.InitializeFieldInfos();
 
-            Logger.Log("SDPF startup done.");
+            Logger.Log("Framework initial startup done.");
         }
 
         /// <summary> Path can be passed with 'Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)'. It is the root mod folder from which other assets and folders branch out. You can provide another path if you know what you're doing.</summary>
@@ -72,7 +86,7 @@ namespace SDPublicFramework
                     }
                     else
                     {
-                        Logger.Exception($"There already is an object that has a custom type [{_customTypes[type.Key].Name}] assigned to this id [{type.Key}].");
+                        Logger.Exception($"There is already an object that has a custom type [{_customTypes[type.Key].Name}] assigned to this id [{type.Key}].");
                     }
                 }
             }
@@ -96,11 +110,11 @@ namespace SDPublicFramework
                     ProcessCombinations(assetsPath);
                     ProcessPrefabInfo(assetsPath);
 
-                    Logger.Log($"Injection passed.");
+                    Logger.Log("Injection passed.");
                 }
                 catch (Exception ex)
                 {
-                    Logger.Exception($"Failed to load mod because of error while injecting: " + ex);
+                    Logger.Exception("Failed to load mod because of error while injecting: " + ex);
                 }
             }
 
@@ -116,6 +130,7 @@ namespace SDPublicFramework
             //_assetBundles = null;
             
             Logger.Log("Passed through injection of all registered mods.");
+            OnFrameworkFinished?.Invoke();
         }
 
         private static void ProcessBundle(string assetsPath)
@@ -604,12 +619,41 @@ namespace SDPublicFramework
             return readValues[i];
         }
 
+        public static string[] DeserializeAll(string expectedValueName, StreamReader reader)
+        {
+            string[] readValues = reader.ReadLine().Split(new string[] { ":", ";" }, StringSplitOptions.RemoveEmptyEntries);
+            if (expectedValueName != readValues[0])
+            {
+                Logger.Exception($"Expected field '{expectedValueName}', found '{readValues[0]}'.");
+                return null;
+            }
+
+            return readValues;
+        }
+
+        public static string DeserializeValue(string expectedValueName, StreamReader reader, int i = 1)
+        {
+            string[] readValues = reader.ReadLine().Split(new string[] { ":", ";" }, StringSplitOptions.RemoveEmptyEntries);
+            if (expectedValueName != readValues[0])
+            {
+                Logger.Exception($"Expected field '{expectedValueName}', found '{readValues[0]}'.");
+                return null;
+            }
+
+            return readValues[i];
+        }
+
+        public delegate void FrameworkDoneNotifier();
+        public static FrameworkDoneNotifier OnFrameworkFinished;
+
+        public const string MODDED_ITEM_NAME_START = "mod_";
+
         private static List<string> _registeredPaths = new List<string>();
         private static Dictionary<uint, Type> _customTypes = new Dictionary<uint, Type>();
 
         private static List<ModdedCraftingCombo> _moddedCraftingCombos = new List<ModdedCraftingCombo>();
 
-        private static Dictionary<uint, GameObject> _moddedPrefabs = new Dictionary<uint, GameObject>();
+        internal static Dictionary<uint, GameObject> _moddedPrefabs = new Dictionary<uint, GameObject>();
         private static Dictionary<string, uint> _nameToId = new Dictionary<string, uint>();
         private static Dictionary<uint, CustomSound> _customClips = new Dictionary<uint, CustomSound>();
 
@@ -635,7 +679,5 @@ namespace SDPublicFramework
             SMALL,
             MEDIUM
         }
-
-        public const string MODDED_ITEM_NAME_START = "mod_";
     }
 }

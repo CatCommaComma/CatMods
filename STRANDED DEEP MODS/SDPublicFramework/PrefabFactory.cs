@@ -18,12 +18,12 @@ namespace SDPublicFramework
 
             try
             {
-                objectName = Framework.DeserializeValue(reader);
+                objectName = Framework.DeserializeValue("name", reader);
                 Logger.Debugger($"Creating Object of name {objectName}.");
 
-                string modelName = Framework.DeserializeValue(reader);
+                string modelName = Framework.DeserializeValue("model", reader);
 
-                string[] properties = Framework.DeserializeAll(reader);
+                string[] properties = Framework.DeserializeAll("specialproperty", reader);
                 PrefabProperty[] specialproperties = new PrefabProperty[] { (PrefabProperty)int.Parse(properties[1]), (PrefabProperty)int.Parse(properties[2]) };
 
                 GameObject prefab = SetupBaseObject(objectName, modelName, specialproperties, reader, out id).gameObject;
@@ -52,6 +52,7 @@ namespace SDPublicFramework
                 BaseObject newInstance = UnityEngine.Object.Instantiate<GameObject>(foundObject).GetComponent<BaseObject>();
                 newInstance.gameObject.SetActive(setActive);
                 newInstance.DisplayName = foundObject.GetComponent<BaseObject>().DisplayName;
+                newInstance.ReferenceId = MiniGuid.New();
 
                 return newInstance;
             }
@@ -112,22 +113,40 @@ namespace SDPublicFramework
                 }
                 else
                 {
-                    Logger.Warning("Prefabs: Detected vanilla item. Please keep in mind this feature is incomplete.");
                     vanillaItem = true;
+                    bool stripVanillaItem = bool.Parse(Framework.DeserializeValue("strip", sr));
+
                     prefab = MultiplayerMng.Instantiate(Resources.Load<GameObject>(modelName));
 
-                    Component[] components = prefab.GetComponents<Component>();
-                    foreach (Component component in components)
+                    if (stripVanillaItem)
                     {
-                        Type componentType = component.GetType();
+                        Component[] components = prefab.GetComponents<Component>();
+                        foreach (Component component in components)
+                        {
+                            Type componentType = component.GetType();
 
-                        //removing the multiplayer component too for safety
-                        //i'm also making an assumption that vanilla items only have custom components on the top parent
-                        if (componentType == typeof(Rigidbody) || componentType == typeof(BoxCollider) ||
-                            componentType == typeof(CapsuleCollider) || componentType == typeof(SphereCollider) ||
-                            componentType == typeof(MeshCollider) || componentType == typeof(Transform)) continue;
+                            //removing the multiplayer component too for safety
+                            //i'm also making an assumption that vanilla items only have custom components on the top parent
+                            if (componentType == typeof(Rigidbody) || componentType == typeof(BoxCollider) ||
+                                componentType == typeof(CapsuleCollider) || componentType == typeof(SphereCollider) ||
+                                componentType == typeof(MeshCollider) || componentType == typeof(Transform)) continue;
 
-                        UnityEngine.Object.DestroyImmediate(component);
+                            UnityEngine.Object.DestroyImmediate(component);
+                        }
+                    }
+
+                    bool overrideValues = bool.Parse(Framework.DeserializeValue("override", sr));
+                    if (!overrideValues)
+                    {
+                        prefab.SetActive(false);
+                        id = uint.Parse(Framework.DeserializeValue("prefabid", sr));
+                        prefab.GetComponent<BaseObject>().PrefabId = id;
+
+                        string[] vcrafttype = Framework.DeserializeAll("craftingtype", sr);
+                        CraftingType vct = new CraftingType((AttributeType)int.Parse(vcrafttype[1]), (InteractiveType)int.Parse(vcrafttype[2]));
+                        fi_craftingType.SetValue(prefab.GetComponent<BaseObject>(), vct);
+
+                        return prefab;
                     }
                 }
             }
@@ -140,15 +159,19 @@ namespace SDPublicFramework
             prefab.SetActive(false);
             prefab.SetLayerRecursively(Layers.INTERACTIVE_OBJECTS);
 
-            if (properties[0] == PrefabProperty.CONSTRUCTION)
+            if (properties[0] == PrefabProperty.CUSTOMCONSTRUCTION)
             {
-                Logger.Warning("Prefabs: Constructions are not supported yet.");
-                return null;
-                //return FinishConstruction(prefabname, sr, prefab).gameObject;
+                return SetupCustomConstruction(prefabname, sr, prefab, id);
+            }
+            else if (properties[0] == PrefabProperty.CONSTRUCTION)
+            {
+                return FinishConstruction(prefabname, sr, prefab, null);
             }
 
             InteractiveObject interactiveComponent = null;
-            id = uint.Parse(Framework.DeserializeValue(sr));
+            id = uint.Parse(Framework.DeserializeValue("prefabid", sr));
+            string[] crafttype = Framework.DeserializeAll("craftingtype", sr);
+            CraftingType ct = new CraftingType((AttributeType)int.Parse(crafttype[1]), (InteractiveType)int.Parse(crafttype[2]));
 
             switch (properties[0])
             {
@@ -189,9 +212,12 @@ namespace SDPublicFramework
 
             interactiveComponent.PrefabId = id;
             interactiveComponent.name = prefabname;
-            interactiveComponent.DisplayName = Framework.DeserializeValue(sr);
+
+            fi_craftingType.SetValue(prefab.GetComponent<BaseObject>(), ct);
+
+            interactiveComponent.DisplayName = Framework.DeserializeValue("displayname", sr);
             fi_originalDisplayName.SetValue(interactiveComponent, interactiveComponent.DisplayName);
-            fi_descriptionTerm.SetValue(interactiveComponent, Framework.DeserializeValue(sr));
+            fi_descriptionTerm.SetValue(interactiveComponent, Framework.DeserializeValue("descriptionterm", sr));
 
             prefab = FinishInteractiveObject(prefabname, sr, prefab, interactiveComponent);
 
@@ -203,10 +229,7 @@ namespace SDPublicFramework
         {
             InteractiveObject_MEDICAL medicalComponent;
 
-            if (includeComponent)
-            {
-                medicalComponent = prefab.AddComponent<InteractiveObject_MEDICAL>();
-            }
+            if (includeComponent) medicalComponent = prefab.AddComponent<InteractiveObject_MEDICAL>();
             else
             {
                 medicalComponent = prefab.GetComponent<InteractiveObject_MEDICAL>();
@@ -219,14 +242,10 @@ namespace SDPublicFramework
                 }
             }
 
-            bool refund = bool.Parse(Framework.DeserializeValue(sr));
-            if (refund)
-            {
-                fi_refundPrefabId.SetValue(medicalComponent, uint.Parse(Framework.DeserializeValue(sr)));
-            }
+            bool refund = bool.Parse(Framework.DeserializeValue("refund", sr));
+            if (refund) fi_refundPrefabId.SetValue(medicalComponent, uint.Parse(Framework.DeserializeValue("refundid", sr)));
 
             interactiveComponent = medicalComponent;
-
             return prefab;
         }
 
@@ -234,10 +253,7 @@ namespace SDPublicFramework
         {
             InteractiveObject_FOOD foodComponent;
 
-            if (includeComponent)
-            {
-                foodComponent = prefab.AddComponent<InteractiveObject_FOOD>();
-            }
+            if (includeComponent) foodComponent = prefab.AddComponent<InteractiveObject_FOOD>();
             else
             {
                 foodComponent = prefab.GetComponent<InteractiveObject_FOOD>();
@@ -250,25 +266,25 @@ namespace SDPublicFramework
                 }
             }
 
-            foodComponent.Calories = int.Parse(Framework.DeserializeValue(sr));
-            foodComponent.Hydration = int.Parse(Framework.DeserializeValue(sr));
-            foodComponent.Servings = int.Parse(Framework.DeserializeValue(sr));
+            foodComponent.Calories = int.Parse(Framework.DeserializeValue("calories", sr));
+            foodComponent.Hydration = int.Parse(Framework.DeserializeValue("hydration", sr));
+            foodComponent.Servings = int.Parse(Framework.DeserializeValue("servings", sr));
 
-            pi_originalServings.SetValue(foodComponent, int.Parse(Framework.DeserializeValue(sr)));
-            fi_destroyOnEmptyServings.SetValue(foodComponent, bool.Parse(Framework.DeserializeValue(sr)));
-            fi_startWithEmptyServings.SetValue(foodComponent, bool.Parse(Framework.DeserializeValue(sr)));
-            fi_vomitChance.SetValue(foodComponent, float.Parse(Framework.DeserializeValue(sr)));
-            fi_isPoisonous.SetValue(foodComponent, bool.Parse(Framework.DeserializeValue(sr)));
+            pi_originalServings.SetValue(foodComponent, int.Parse(Framework.DeserializeValue("originalservings", sr)));
+            fi_destroyOnEmptyServings.SetValue(foodComponent, bool.Parse(Framework.DeserializeValue("destroyonemptyservings", sr)));
+            fi_startWithEmptyServings.SetValue(foodComponent, bool.Parse(Framework.DeserializeValue("startwithemptyservings", sr)));
+            fi_vomitChance.SetValue(foodComponent, float.Parse(Framework.DeserializeValue("vomitchance", sr)));
+            fi_isPoisonous.SetValue(foodComponent, bool.Parse(Framework.DeserializeValue("ispoisonous", sr)));
 
-            foodComponent.Provenance = (MeatProvenance)int.Parse(Framework.DeserializeValue(sr));
+            foodComponent.Provenance = (MeatProvenance)int.Parse(Framework.DeserializeValue("provenance", sr));
 
-            foodComponent.CanAttach = bool.Parse(Framework.DeserializeValue(sr));
+            foodComponent.CanAttach = bool.Parse(Framework.DeserializeValue("canattach", sr));
             if (foodComponent.CanAttach)
             {
                 /*****  v v v attach to spit/campfire location and rotation v v v  *****/
                 Vector3 loc = default;
 
-                string[] anchorc = sr.ReadLine().Split(new string[] { ":", ";" }, StringSplitOptions.RemoveEmptyEntries);
+                string[] anchorc = Framework.DeserializeAll("anchor", sr);
                 float xc = float.Parse(anchorc[1]), yc = float.Parse(anchorc[2]), zc = float.Parse(anchorc[3]);
                 loc.Set(xc, yc, zc);
 
@@ -278,10 +294,8 @@ namespace SDPublicFramework
                 StaticAttachingAnchor anch = new StaticAttachingAnchor(loc, rot);
                 fi_attachingAnchor.SetValue(foodComponent, anch);
 
-                /***********************************************************************/
-
-                float cooktime = float.Parse(Framework.DeserializeValue(sr));
-                float smoketime = float.Parse(Framework.DeserializeValue(sr));
+                float cooktime = float.Parse(Framework.DeserializeValue("cooktime", sr));
+                float smoketime = float.Parse(Framework.DeserializeValue("smoketime", sr));
 
                 Cooking cook = prefab.AddComponent<Cooking>();
                 fi_cookingHours.SetValue(cook, cooktime);
@@ -299,9 +313,9 @@ namespace SDPublicFramework
                 fi_cooking.SetValue(foodComponent, cook);
                 fi_smoking.SetValue(foodComponent, smok);
             }
-            foodComponent.Spoilable = bool.Parse(Framework.DeserializeValue(sr));
-            interactiveComponent = foodComponent;
+            foodComponent.Spoilable = bool.Parse(Framework.DeserializeValue("spoilable", sr));
 
+            interactiveComponent = foodComponent;
             return prefab;
         }
 
@@ -309,10 +323,7 @@ namespace SDPublicFramework
         {
             InteractiveObject_Recipe recipeComponent;
 
-            if (includeComponent)
-            {
-                recipeComponent = prefab.AddComponent<InteractiveObject_Recipe>();
-            }
+            if (includeComponent) recipeComponent = prefab.AddComponent<InteractiveObject_Recipe>();
             else
             {
                 recipeComponent = prefab.GetComponent<InteractiveObject_Recipe>();
@@ -325,17 +336,15 @@ namespace SDPublicFramework
                 }
             }
 
-            string[] unlocks = sr.ReadLine().Split(new string[] { ":", ";" }, StringSplitOptions.RemoveEmptyEntries);
-
             recipeComponent.UnlockedRecipeNames = new List<string>();
 
+            string[] unlocks = sr.ReadLine().Split(new string[] { ":", ";" }, StringSplitOptions.RemoveEmptyEntries);
             for (int i = 1; i < unlocks.Length; i++)
             {
                 recipeComponent.UnlockedRecipeNames.Add(unlocks[i]);
             }
 
             interactiveComponent = recipeComponent;
-
             return prefab;
         }
 
@@ -373,52 +382,48 @@ namespace SDPublicFramework
 
         private static GameObject FinishInteractiveObject(string prefabname, StreamReader sr, GameObject prefab, InteractiveObject interactiveComponent)
         {
-            interactiveComponent.CanDrag = bool.Parse(Framework.DeserializeValue(sr));
+            interactiveComponent.CanDrag = bool.Parse(Framework.DeserializeValue("candrag", sr));
             fi_isDraggable.SetValue(interactiveComponent, interactiveComponent.CanDrag);
-            interactiveComponent.CanPickUp = bool.Parse(Framework.DeserializeValue(sr));
-            interactiveComponent.CanUse = bool.Parse(Framework.DeserializeValue(sr));
-            interactiveComponent.CanInteract = bool.Parse(Framework.DeserializeValue(sr));
-            interactiveComponent.CanUseOnObjects = bool.Parse(Framework.DeserializeValue(sr));
-            interactiveComponent.CanDamage = bool.Parse(Framework.DeserializeValue(sr));
-            interactiveComponent.IsDamageable = bool.Parse(Framework.DeserializeValue(sr));
+            interactiveComponent.CanPickUp = bool.Parse(Framework.DeserializeValue("canpickup", sr));
+            interactiveComponent.CanUse = bool.Parse(Framework.DeserializeValue("canuse", sr));
+            interactiveComponent.CanInteract = bool.Parse(Framework.DeserializeValue("caninteract", sr));
+            interactiveComponent.CanUseOnObjects = bool.Parse(Framework.DeserializeValue("canuseonobjects", sr));
+            interactiveComponent.CanDamage = bool.Parse(Framework.DeserializeValue("candamage", sr));
+            interactiveComponent.IsDamageable = bool.Parse(Framework.DeserializeValue("isdamageable", sr));
 
             interactiveComponent.CanParent = true;
-            fi_invincible.SetValue(interactiveComponent, bool.Parse(Framework.DeserializeValue(sr)));
+            fi_invincible.SetValue(interactiveComponent, bool.Parse(Framework.DeserializeValue("invincible", sr)));
             fi_nonKinematic.SetValue(interactiveComponent, true);
-            fi_damage.SetValue(interactiveComponent, float.Parse(Framework.DeserializeValue(sr)));
+            fi_damage.SetValue(interactiveComponent, float.Parse(Framework.DeserializeValue("damage", sr)));
 
-            interactiveComponent.HealthPoints = float.Parse(Framework.DeserializeValue(sr));
+            interactiveComponent.HealthPoints = float.Parse(Framework.DeserializeValue("healthpoints", sr));
 
-            string originalDurabilityPoints = Framework.DeserializeValue(sr);
+            string originalDurabilityPoints = Framework.DeserializeValue("originaldurabilitypoints", sr);
             pi_originalDurabilityPoints.SetValue(interactiveComponent, float.Parse(originalDurabilityPoints));
             interactiveComponent.DurabilityPoints = float.Parse(originalDurabilityPoints);
 
             /*****************************************/
 
-            Vector3 holdpos = default;
+            Vector3 holdingInfo = default;
 
-            string[] coords = sr.ReadLine().Split(new string[] { ":", ";" }, StringSplitOptions.RemoveEmptyEntries);
-            float x = float.Parse(coords[1]), y = float.Parse(coords[2]), z = float.Parse(coords[3]);
-            holdpos.Set(x, y, z);
-            fi_localHoldingPosition.SetValue(interactiveComponent, holdpos);
+            string[] holdingLocation = Framework.DeserializeAll("localholdingposition", sr);
+            float x = float.Parse(holdingLocation[1]), y = float.Parse(holdingLocation[2]), z = float.Parse(holdingLocation[3]);
+            holdingInfo.Set(x, y, z);
+            fi_localHoldingPosition.SetValue(interactiveComponent, holdingInfo);
 
-            string[] coords2 = sr.ReadLine().Split(new string[] { ":", ";" }, StringSplitOptions.RemoveEmptyEntries);
-            x = float.Parse(coords2[1]); y = float.Parse(coords2[2]); z = float.Parse(coords2[3]);
-            holdpos.Set(x, y, z);
-            fi_localHoldingRotation.SetValue(interactiveComponent, holdpos);
+            string[] holdingRotation = Framework.DeserializeAll("localholdingrotation", sr);
+            x = float.Parse(holdingRotation[1]); y = float.Parse(holdingRotation[2]); z = float.Parse(holdingRotation[3]);
+            holdingInfo.Set(x, y, z);
+            fi_localHoldingRotation.SetValue(interactiveComponent, holdingInfo);
 
-            fi_classification.SetValue(interactiveComponent, (InteractiveObjectClassification)int.Parse(Framework.DeserializeValue(sr)));
-            fi_idle.SetValue(interactiveComponent, (AnimationType)int.Parse(Framework.DeserializeValue(sr)));
-            fi_primary.SetValue(interactiveComponent, (AnimationType)int.Parse(Framework.DeserializeValue(sr)));
-            fi_primaryOnObject.SetValue(interactiveComponent, (AnimationType)int.Parse(Framework.DeserializeValue(sr)));
-
-            string[] crafttype = Framework.DeserializeAll(sr);
-            CraftingType ct = new CraftingType((AttributeType)int.Parse(crafttype[1]), (InteractiveType)int.Parse(crafttype[2]));
-            fi_craftingType.SetValue(prefab.GetComponent<BaseObject>(), ct);
+            fi_classification.SetValue(interactiveComponent, (InteractiveObjectClassification)int.Parse(Framework.DeserializeValue("classification", sr)));
+            fi_idle.SetValue(interactiveComponent, (AnimationType)int.Parse(Framework.DeserializeValue("idle", sr)));
+            fi_primary.SetValue(interactiveComponent, (AnimationType)int.Parse(Framework.DeserializeValue("primary", sr)));
+            fi_primaryOnObject.SetValue(interactiveComponent, (AnimationType)int.Parse(Framework.DeserializeValue("primaryonobject", sr)));
 
             /*****************************************/
 
-            Renderer[] allRenderers = HandleRenderers(prefab);
+            Renderer[] allRenderers = SetupShaders(prefab);
             fi_renderers.SetValue(interactiveComponent, allRenderers);
 
             /*****************************************/
@@ -426,37 +431,45 @@ namespace SDPublicFramework
             Rigidbody rigidBody = prefab.GetComponent<Rigidbody>();
 
             fi_interactiveRigidbody.SetValue(interactiveComponent, rigidBody);
-            fi_colliders.SetValue(interactiveComponent, prefab.GetComponentsInChildren<Collider>());
+
+            List<Component> colliderComponents = CatUtility.GetAllComponentsOfType(prefab.transform, typeof(Collider));
+            Collider[] colliders = new Collider[colliderComponents.Count];
+
+            for (int i=0; i<colliders.Length; i++)
+            {
+                colliders[i] = (Collider)colliderComponents[i];
+            }
+            fi_colliders.SetValue(interactiveComponent, colliders);
 
             if (allRenderers == null || allRenderers.Length == 0)
             {
-                Logger.Exception($"Renderers of " + prefabname + " are null or non existent. Item WILL be invisible.");
+                Logger.Exception($"Renderers of " + prefabname + " are null or non existent. Object will be invisible.");
             }
 
-            if (fi_colliders.GetValue(interactiveComponent) == null)
+            if (colliders == null || colliders.Length == 0)
             {
                 Logger.Exception($"Colliders of {prefabname} are null. Object will ignore all other colliders.");
             }
 
             if (rigidBody == null)
             {
-                Logger.Warning($"Rigidbody of {prefabname} is null. Object will be affected by gravity and other rigidbody specific values.");
+                Logger.Warning($"Rigidbody of {prefabname} is null. Object will not be affected by gravity and other rigidbody specific parameters.");
             }
 
             pi_originalDrag.SetValue(interactiveComponent, rigidBody.drag);
             pi_originalAngularDrag.SetValue(interactiveComponent, rigidBody.angularDrag);
 
-            bool buoyant = bool.Parse(Framework.DeserializeValue(sr));
+            bool buoyant = bool.Parse(Framework.DeserializeValue("buoyant", sr));
             if (buoyant)
             {
                 Buoyancy buoy = prefab.AddComponent<Buoyancy>();
                 fi_buoyancyRigidbody.SetValue(buoy, rigidBody);
             }
 
-            bool lootable = bool.Parse(Framework.DeserializeValue(sr));
+            bool lootable = bool.Parse(Framework.DeserializeValue("injecttoloot", sr));
             if (lootable)
             {
-                float weight = float.Parse(Framework.DeserializeValue(sr));
+                float weight = float.Parse(Framework.DeserializeValue("weight", sr));
                 Framework.ModdedItemLootTable.Add(interactiveComponent.PrefabId, weight);
             }
 
@@ -466,15 +479,13 @@ namespace SDPublicFramework
 
         public static GameObject SetupProp(string prefabname, StreamReader sr, GameObject prefab)
         {
-            HandleRenderers(prefab);
-
-            prefab.SetActive(false);
+            SetupShaders(prefab);
             prefab.SetLayerRecursively(Layers.INTERACTIVE_OBJECTS);
 
             return prefab;
         }
 
-        private static Renderer[] HandleRenderers(GameObject prefab)
+        public static Renderer[] SetupShaders(GameObject prefab)
         {
             Renderer rend = prefab.GetComponent<Renderer>();
             if (rend != null)
@@ -537,8 +548,6 @@ namespace SDPublicFramework
             pi_originalDrag = typeof(InteractiveObject).GetProperty(nameof(InteractiveObject.OriginalDrag));
             pi_originalAngularDrag = typeof(InteractiveObject).GetProperty(nameof(InteractiveObject.OriginalAngularDrag));
             fi_buoyancyRigidbody = typeof(Buoyancy).GetField("_rigidbody", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            _gameShader = Shader.Find("Standard (Extra");
         }
 
         internal static void CleanupReflection()
@@ -582,8 +591,6 @@ namespace SDPublicFramework
             pi_originalDrag = null;
             pi_originalAngularDrag = null;
             fi_buoyancyRigidbody = null;
-
-            _gameShader = null;
         }
 
         private static FieldInfo fi_originalDisplayName;
@@ -626,7 +633,110 @@ namespace SDPublicFramework
         private static PropertyInfo pi_originalAngularDrag;
         private static FieldInfo fi_buoyancyRigidbody;
 
-        private static Shader _gameShader;
+        //CONSTRUCTIONS
+        private static GameObject SetupCustomConstruction(string prefabname, StreamReader sr, GameObject prefab, uint id)
+        {
+            Type customType = Framework.CustomTypes[id];
+
+            if (customType == null)
+            {
+                Logger.Exception($"Prefabs: Custom class of {prefabname} is null.");
+                return null;
+            }
+
+            var customComponent = prefab.AddComponent(customType);
+            Constructing constructingComponent = customComponent as Constructing;
+
+            if (constructingComponent == null)
+            {
+                Logger.Exception($"Prefabs: Could not cast type 'Constructing' from custom type '{customType.Name}'.");
+                return null;
+            }
+
+            return FinishConstruction(prefabname, sr, prefab, constructingComponent);
+        }
+
+        private static GameObject FinishConstruction(string prefabname, StreamReader sr, GameObject prefab, Constructing constructingComponent)
+        {
+            bool hasConnector = true;
+
+            if (hasConnector)
+            {
+                Connector connector = prefab.AddComponent<Connector>();
+                connector.Constructing = constructingComponent;
+
+                typeof(Connector).GetField("_type", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(ConnectorType.LIGHT_HOOK, connector);
+                typeof(Connector).GetField("_useTransformPositionForSnapping", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(true, connector);
+                typeof(Connector).GetField("_checkType", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(true, connector);
+                typeof(Connector).GetField("_isValid", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(true, connector);
+                typeof(Connector).GetField("_canSet", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(true, connector);
+            }
+
+            //typeof(Constructing).GetField("_placingDistance", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(2, constructingComponent);
+            //typeof(Constructing).GetField("_rotationAngle", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(90f, constructingComponent);
+
+            //typeof(Constructing).GetField("_ghostObject", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(prefab, constructingComponent);
+            //constructingComponent.MaximumHealthPoints = 1;
+
+            UnityEngine.Object.DontDestroyOnLoad(prefab);
+            return prefab;
+        }
+
+        //FISHY
+        private static GameObject FinishFishie(string prefabname, StreamReader sr, GameObject prefab, Constructing constructingComponent)
+        {
+            Shootable shootable = prefab.AddComponent<Shootable>(); //v
+            Interactive_FISHES interactiveFishes = prefab.AddComponent<Interactive_FISHES>(); //v
+            SingleFish singleFish = prefab.AddComponent<SingleFish>(); //v
+            SingleFishRenderer singleFishRenderer = prefab.AddComponent<SingleFishRenderer>(); //v
+            FishMovement fishMovement = prefab.AddComponent<FishMovement>(); //v
+            FishingData fishingData = new FishingData(); //v
+
+            Interactive_FISH fish = null;
+
+            //fishing data
+            fishingData.FishType = FishSize.Medium;
+            fishingData.FishPrefab = fish;
+
+            //single fish renderer
+            typeof(SingleFishRenderer).GetField("_visible", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFishRenderer, false);
+            typeof(SingleFishRenderer).GetField("_meshRenderer", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFishRenderer, prefab.GetComponent<Renderer>());
+            typeof(SingleFishRenderer).GetField("_visible", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFishRenderer, false);
+
+            typeof(FishRendererBase).GetField("_cullingDistance", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFishRenderer, 35f);
+            typeof(FishRendererBase).GetField("_castShadows", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFishRenderer, true);
+            typeof(FishRendererBase).GetField("_receiveShadows", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFishRenderer, true);
+
+            //single fish
+            typeof(SingleFish).GetField("_interestRadius", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFish, 1f);
+
+            typeof(FishBase).GetField("_prefabId", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFish, 0U);
+            typeof(FishBase).GetField("_fishingData", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFish, fishingData);
+            typeof(FishBase).GetField("_fishRenderer", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(singleFish, singleFishRenderer);
+
+            //INTERACTIVE_FISHES
+            typeof(Interactive_FISHES).GetField("_displayName", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(interactiveFishes, "fish name");
+            interactiveFishes.CanParent = false;
+
+            typeof(Interactive_FISHES).GetField("_raycastMode", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(interactiveFishes, RaycastMode.Collider);
+            typeof(Interactive_FISHES).GetField("_healthPoints", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(interactiveFishes, 0);
+            typeof(Interactive_FISHES).GetField("_originalHealthPoints", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(interactiveFishes, 0);
+            typeof(Interactive_FISHES).GetField("_fishes", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(interactiveFishes, singleFish);
+
+            //fish movement
+            typeof(FishMovement).GetField("_fish", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(fishMovement, singleFish);
+            typeof(FishMovement).GetField("_minWorldHeight", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(fishMovement, -7d);
+            typeof(FishMovement).GetField("_maxWorldHeight", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(fishMovement, -15f);
+            typeof(FishMovement).GetField("_speed", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(fishMovement, 1.3f);
+            typeof(FishMovement).GetField("_steer", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(fishMovement, 2.5f);
+            typeof(FishMovement).GetField("_stuck", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(fishMovement, 0.13f);
+            typeof(FishMovement).GetField("_originalSpeed", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(fishMovement, 1.3f);
+            typeof(FishMovement).GetField("_originalSteer", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(fishMovement, 2.5f);
+            typeof(FishMovement).GetField("_hooked", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(fishMovement, false);
+
+            UnityEngine.Object.DontDestroyOnLoad(prefab);
+            return prefab;
+        }
     }
 }
 

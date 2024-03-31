@@ -60,13 +60,13 @@ namespace SDPublicFramework
 
         public static void UnequipAll()
         {
+            if ((Game.State != GameState.LOAD_GAME && Game.State != GameState.NEW_GAME)) return;
             if (_equippedEquippables.Count == 0) return;
 
-            foreach (IEquippable existingEquippable in _equippedEquippables)
+            foreach (IEquippable existingEquippable in _equippedEquippables) 
             {
                 existingEquippable.OnUnequip();
             }
-
             _equippedEquippables.Clear();
         }
 

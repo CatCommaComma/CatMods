@@ -17,19 +17,20 @@ namespace SDPublicFramework
 
         public void OnGUI(UnityModManager.ModEntry modEntry)
         {
-            Main.ChangingUnequipKey = GUILayout.Toggle(Main.ChangingUnequipKey, "Change the unequip key", new GUILayoutOption[0]);
+            Main.ChangingUnequipKey = GUILayout.Toggle(Main.ChangingUnequipKey, "Change the unequip key.", new GUILayoutOption[0]);
             GUILayout.Label("Current unequip key: " + UnequipApparelKey);
             GUILayout.Label("");
 
-            PrefabDebugger = GUILayout.Toggle(PrefabDebugger, " SDPF Prefab debugger (for modders)", new GUILayoutOption[0]);
+            PrefabDebugger = GUILayout.Toggle(PrefabDebugger, " SDPF Prefab debugger (for modders).", new GUILayoutOption[0]);
 
             if (PrefabDebugger)
             {
                 GUILayout.Label("SDPF TOOLS");
                 GUILayout.Label("");
-                GetCurrentPrefab = GUILayout.Toggle(GetCurrentPrefab, "Get currently held prefab as chosen prefab", new GUILayoutOption[0]);
-                GetCurrentRaycastedPrefab = GUILayout.Toggle(GetCurrentRaycastedPrefab, "Get currently raycasted prefab as base prefab", new GUILayoutOption[0]);
-                GetChosenPrefabInfo = GUILayout.Toggle(GetChosenPrefabInfo, "Get chosen prefab's info", new GUILayoutOption[0]);
+                GetCurrentPrefab = GUILayout.Toggle(GetCurrentPrefab, "Get currently held prefab as chosen prefab.", new GUILayoutOption[0]);
+                GetCurrentRaycastedPrefab = GUILayout.Toggle(GetCurrentRaycastedPrefab, "Get currently raycasted prefab as base prefab.", new GUILayoutOption[0]);
+                GetChosenPrefabInfo = GUILayout.Toggle(GetChosenPrefabInfo, "Get chosen prefab's info.", new GUILayoutOption[0]);
+                LogAllInformation = GUILayout.Toggle(LogAllInformation, "Log ALL information of currently raycasted prefab.", new GUILayoutOption[0]);
                 GUILayout.Label("");
 
                 Main.ModSettings.Draw(modEntry);
@@ -64,6 +65,8 @@ namespace SDPublicFramework
         public bool GetCurrentPrefab;
         public bool GetChosenPrefabInfo;
         public bool GetCurrentRaycastedPrefab;
+
+        public bool LogAllInformation;
 
         [Draw("Adjust prefabs", Collapsible = true)] public PrefabAdjuster PrefabAdjuster = new PrefabAdjuster();
 
