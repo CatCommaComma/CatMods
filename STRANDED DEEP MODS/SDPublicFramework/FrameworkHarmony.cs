@@ -16,11 +16,12 @@ using System.Linq;
 using UnityModManagerNet;
 using Beam.Developer;
 using Beam.Developer.UI;
+using Photon.Bolt;
 
 namespace SDPublicFramework
 {
     //for loading registered mods
-    [HarmonyPatch(typeof(UnityModManager.Logger), nameof(UnityModManager.Logger.Log), new Type[] {typeof(string)})]
+    [HarmonyPatch(typeof(UnityModManager.Logger), nameof(UnityModManager.Logger.Log), new Type[] { typeof(string) })]
     class UnityModManager_Logger_Log_Patch
     {
         private static void Postfix(string str)
@@ -421,7 +422,7 @@ namespace SDPublicFramework
         }
     }
 
-    //handle sound effects of medical items
+    //handle sounds and effects of medical items
     [HarmonyPatch(typeof(InteractiveObject_MEDICAL), nameof(InteractiveObject_MEDICAL.ValidatePrimary), new Type[] { typeof(IBase) })]
     class InteractiveObject_MEDICAL_ValidatePrimary_Patch
     {
@@ -429,76 +430,53 @@ namespace SDPublicFramework
         {
             if (__instance.PrefabId >= 400U)
             {
-                if (__instance.CraftingType.InteractiveType == InteractiveType.MEDICAL_ANTIDOTE)
+                ICustomEffect customMedical = __instance as ICustomEffect;
+
+                if (customMedical != null)
                 {
-                    __result = CheckConsumable(__instance, StatusEffect.POISON, false);
+                    try
+                    {
+                        __result = CatUtility.ValidateMedical(__instance, customMedical.CustomEffect, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Exception($"Issue with ICustomEffect on item '{__instance.name}': {ex}");
+                        __result = false;
+                    }
+                }
+                else if (__instance.CraftingType.InteractiveType == InteractiveType.MEDICAL_ANTIDOTE)
+                {
+                    __result = CatUtility.ValidateMedical(__instance, StatusEffect.POISON, false);
                 }
                 else if (__instance.CraftingType.InteractiveType == InteractiveType.MEDICAL_BANDAGE || __instance.CraftingType.InteractiveType == InteractiveType.MEDICAL_GAUZE)
                 {
-                    __result = CheckConsumable(__instance, StatusEffect.BLEEDING, false);
+                    __result = CatUtility.ValidateMedical(__instance, StatusEffect.BLEEDING, false);
                 }
                 else if (__instance.CraftingType.InteractiveType == InteractiveType.MEDICAL_AJUGA)
                 {
-                    __result = CheckConsumable(__instance, StatusEffect.BOOST_BREATH, true);
+                    __result = CatUtility.ValidateMedical(__instance, StatusEffect.BOOST_BREATH, true);
                 }
                 else if (__instance.CraftingType.InteractiveType == InteractiveType.MEDICAL_SPLINT)
                 {
-                    __result = CheckConsumable(__instance, StatusEffect.BROKEN_BONES, false);
+                    __result = CatUtility.ValidateMedical(__instance, StatusEffect.BROKEN_BONES, false);
                 }
                 else if (__instance.CraftingType.InteractiveType == InteractiveType.MEDICAL_ALOE_SALVE)
                 {
-                    __result = CheckConsumable(__instance, StatusEffect.SUNBLOCK, true);
+                    __result = CatUtility.ValidateMedical(__instance, StatusEffect.SUNBLOCK, true);
                 }
-                //if it's a custom medicament, handle it yourself
+
+                if (__result)
+                {
+                    IConsumableSound consumableSound = __instance as IConsumableSound;
+                    if (consumableSound == null) { consumableSound = Framework.GetConsumableSound(__instance.PrefabId); }
+
+                    AudioManager.GetAudioPlayer().Play2D(CatUtility.MedicalConsumableSound(consumableSound), AudioMixerChannels.Voice, AudioPlayMode.Single);
+                }
 
                 return false;
             }
 
             return true;
-        }
-
-        private static bool CheckConsumable(InteractiveObject_MEDICAL item, PlayerEffect effect, bool add)
-        {
-            IPlayer user = PlayerUtilities.GetPlayerFromId(item.OwnerId);
-
-            if (user != null && item.DurabilityPoints > 0)
-            {
-                IConsumableSound consumableSound = item as IConsumableSound;
-                if (consumableSound == null) { consumableSound = Framework.GetConsumableSound(item.PrefabId); }
-
-                if (add)
-                {
-                    if (user.Statistics.HasStatusEffect(effect))
-                    {
-                        return false;
-                    }
-
-                    HandleMedicalConsumableSound(consumableSound);
-                    return user.Statistics.ApplyStatusEffect(effect);
-                }
-                else
-                {
-                    if (!user.Statistics.HasStatusEffect(effect))
-                    {
-                        return false;
-                    }
-
-                    HandleMedicalConsumableSound(consumableSound);
-                    return user.Statistics.RemoveStatusEffect(effect);
-                }
-            }
-
-            return false;
-        }
-
-        private static void HandleMedicalConsumableSound(IConsumableSound customSound)
-        {
-            if (customSound != null)
-            {
-                if (customSound.ConsumableClip == null) Logger.Exception("This medicine consume sound doesn't exist.");
-                AudioManager.GetAudioPlayer().Play2D(customSound.ConsumableClip, AudioMixerChannels.Voice, AudioPlayMode.Single);
-            }
-            else AudioManager.GetAudioPlayer().Play2D(BasicSounds.DrinkSound, AudioMixerChannels.Voice, AudioPlayMode.Single);
         }
     }
 
@@ -529,7 +507,7 @@ namespace SDPublicFramework
                             }
 
                             AccessTools.Method(typeof(InteractiveObject_MEDICAL), "ReplicatedPickupEmptyRefund", new Type[] { typeof(IPlayer), typeof(IPickupable) })
-                                .Invoke(__instance, new object[] { _ownerRef(__instance), foodComponent, null});
+                                .Invoke(__instance, new object[] { _ownerRef(__instance), foodComponent, null });
                         }
                         else
                         {
@@ -538,12 +516,12 @@ namespace SDPublicFramework
                         }
                     }
                 }
-                catch(Exception ex) { Debug.Log(ex); }
+                catch (Exception ex) { Debug.Log(ex); }
             }
         }
     }
 
-    //handle sound effects of food items
+    //handle sounds and effects of food items
     [HarmonyPatch(typeof(InteractiveObject_FOOD), nameof(InteractiveObject_FOOD.ValidatePrimary), new Type[] { typeof(IBase) })]
     class InteractiveObject_FOOD_ValidatePrimary_Patch
     {
@@ -566,24 +544,25 @@ namespace SDPublicFramework
                     IConsumableSound consumableSound = __instance as IConsumableSound;
                     if (consumableSound == null) { consumableSound = Framework.GetConsumableSound(__instance.PrefabId); }
 
-                    HandleFoodConsumableSound(isWater, consumableSound);
-                }
+                    ICustomEffect customEffect = __instance as ICustomEffect;
+                    if (customEffect != null)
+                    {
+                        try
+                        {
+                            CatUtility.ValidateFood(__instance, customEffect.CustomEffect, true);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Exception($"Issue with ICustomEffect on item '{__instance.name}': {ex}");
+                            __result = false;
+                        }
+                    }
 
+                    AudioManager.GetAudioPlayer().Play2D(CatUtility.FoodConsumableSound(isWater, consumableSound), AudioMixerChannels.Voice, AudioPlayMode.Single);
+                }
                 return false;
             }
-
             return true;
-        }
-
-        private static void HandleFoodConsumableSound(bool isWater, IConsumableSound customSound)
-        {
-            if (customSound != null)
-            {
-                if (customSound.ConsumableClip == null) Logger.Exception("This food consume sound doesn't exist.");
-                AudioManager.GetAudioPlayer().Play2D(customSound.ConsumableClip, AudioMixerChannels.Voice, AudioPlayMode.Single);
-            }
-            else if (isWater) AudioManager.GetAudioPlayer().Play2D(BasicSounds.DrinkSound, AudioMixerChannels.Voice, AudioPlayMode.Single);
-            else AudioManager.GetAudioPlayer().Play2D(BasicSounds.EatSound, AudioMixerChannels.Voice, AudioPlayMode.Single);
         }
     }
 
@@ -644,7 +623,7 @@ namespace SDPublicFramework
                             {
                                 BaseObject baseObject;
 
-                                if (modded) baseObject = PrefabFactory.InstantiateModdedObject(combination.Name).gameObject.GetComponent<BaseObject>();
+                                if (modded) baseObject = PrefabFactory.InstantiateModdedObject(combination.Name);
                                 else baseObject = MultiplayerMng.Instantiate<BaseObject>(_currentCombinationRef(__instance).PrefabAssetPath, referenceId);
 
                                 if (Framework.CraftingLogic.ContainsKey(combination.Name))
@@ -658,24 +637,34 @@ namespace SDPublicFramework
                                     baseObject.ReferenceId = new MiniGuid();
 
                                     InteractiveObject interactiveObject = baseObject as InteractiveObject;
-                                    interactiveObject.EnablePhysics();
 
-                                    if (_playerRef(__instance).Holder.CurrentObject == null) _playerRef(__instance).Holder.Pickup(interactiveObject, false);
-                                    else if (_playerRef(__instance).Inventory.GetSlotStorage().CanPush(interactiveObject))
+                                    if (interactiveObject != null)
                                     {
-                                        _playerRef(__instance).Inventory.GetSlotStorage().Push(interactiveObject);
-                                        CatUtility.PopNotification(baseObject.DisplayName + " stored in the inventory.", 4.5f);
+                                        interactiveObject.EnablePhysics();
+
+                                        if (_playerRef(__instance).Holder.CurrentObject == null) _playerRef(__instance).Holder.Pickup(interactiveObject, false);
+                                        else if (_playerRef(__instance).Inventory.GetSlotStorage().CanPush(interactiveObject))
+                                        {
+                                            _playerRef(__instance).Inventory.GetSlotStorage().Push(interactiveObject);
+                                            CatUtility.PopNotification(baseObject.DisplayName + " stored in the inventory.", 4.5f);
+                                        }
+                                        else
+                                        {
+                                            baseObject.gameObject.transform.position = _playerRef(__instance).transform.position;
+                                            baseObject.gameObject.transform.rotation = _playerRef(__instance).transform.rotation;
+                                            CatUtility.PopNotification("No space in inventory. " + baseObject.DisplayName + " dropped on ground instead.", 5f);
+                                        }
+
+                                        EventManager.RaiseEvent<ExperienceEvent>(new ExperienceEvent(_playerRef(__instance).Id, PlayerSkills.Skills.CRAFTSMANSHIP, _currentCombinationRef(__instance).ExpRewardOnCraft));
+                                        AccessTools.Method(typeof(Crafter), "DestroyBackupMaterials").Invoke(__instance, new object[] { });
+                                        AccessTools.Method(typeof(Crafter), "CleanupCachedMaterials").Invoke(__instance, new object[] { });
                                     }
                                     else
                                     {
-                                        baseObject.gameObject.transform.position = _playerRef(__instance).transform.position;
-                                        baseObject.gameObject.transform.rotation = _playerRef(__instance).transform.rotation;
-                                        CatUtility.PopNotification("No space in inventory. " + baseObject.DisplayName + " dropped on ground instead.", 5f);
-                                    }
+                                        Logger.Warning("Detected non interactive object. Trying construction init");
 
-                                    EventManager.RaiseEvent<ExperienceEvent>(new ExperienceEvent(_playerRef(__instance).Id, PlayerSkills.Skills.CRAFTSMANSHIP, _currentCombinationRef(__instance).ExpRewardOnCraft));
-                                    AccessTools.Method(typeof(Crafter), "DestroyBackupMaterials").Invoke(__instance, new object[] { });
-                                    AccessTools.Method(typeof(Crafter), "CleanupCachedMaterials").Invoke(__instance, new object[] { });
+                                        AccessTools.Method(typeof(Crafter), "Craft", new Type[] { typeof(SaveablePrefab) }).Invoke(__instance, new object[] { baseObject });
+                                    }
                                 }
                                 else
                                 {
@@ -709,7 +698,7 @@ namespace SDPublicFramework
         }
     }
 
-    [HarmonyPatch(typeof(DeveloperMode), nameof(DeveloperMode.Create), new Type[] {typeof(GameObject), typeof(float)})]
+    [HarmonyPatch(typeof(DeveloperMode), nameof(DeveloperMode.Create), new Type[] { typeof(GameObject), typeof(float) })]
     class DeveloperMode_Create_Patch
     {
         private static bool Prefix(GameObject prefab, float offset = 0f)
@@ -730,6 +719,65 @@ namespace SDPublicFramework
 
                     return false;
                 }
+            }
+            return true;
+        }
+    }
+
+    //place stuff down on islands randomly on world generation
+
+    //for modded structures
+    //i don't know if i'm stupid but beam's structures code doesn't make any fucking sense to me, i have to rewrite some of it to be actually usable
+    [HarmonyPatch(typeof(Constructing), nameof(Constructing.CheckStructure))]
+    class Constructing_CheckStructure_Patch
+    {
+        private static readonly AccessTools.FieldRef<Constructing, Connector> _snappedConnectorRef = AccessTools.FieldRefAccess<Constructing, Connector>("_snappedConnector");
+        //private static readonly AccessTools.FieldRef<Constructing, > Ref = AccessTools.FieldRefAccess<Constructing, >("_snappedConnector");
+
+        private static bool Prefix(Constructing __instance)
+        {
+            if (__instance.PrefabId >= 400U)
+            {
+                if (_snappedConnectorRef(__instance) != null)
+                {
+                    __instance.Structure = _snappedConnectorRef(__instance).Constructing.Structure;
+                }
+                else if (__instance.Structure.IsNullOrDestroyed())
+                {
+                    BaseObject og = PrefabFactory.InstantiateModdedObject(__instance.PrefabId);
+                    UnityEngine.Object.Destroy(og as Constructing);
+
+                    Construction_STRUCTURE structure = og.gameObject.AddComponent<Construction_STRUCTURE>();
+
+                    typeof(Construction_STRUCTURE).GetField("_rigidbody", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(structure, CatUtility.GetAllComponentsOfType(og.transform, typeof(Rigidbody))[0]);
+                    typeof(Construction_STRUCTURE).GetField("_disableGhostCollisionOnSnap", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(structure, false);
+
+                    __instance.Structure = structure;
+                    __instance.Structure.transform.position = __instance.transform.position;
+                    __instance.Structure.transform.rotation = __instance.transform.rotation;
+                    __instance.Structure.transform.localScale = Vector3.one;
+                    __instance.Structure.gameObject.layer = __instance.gameObject.layer;
+
+                    /*if (Game.Mode.IsServer() && Prefabs.IsMultiplayerEntity(prefabId))
+                    {
+                        new Constructing.ReplicateCreateConstruction
+                        {
+                            Structure = __instance.Structure,
+                            StructureLayer = __instance.gameObject.layer,
+                            PrefabId = __instance.PrefabId,
+                            ReferenceId = __instance.ReferenceId,
+                            Position = __instance.transform.position,
+                            Rotation = __instance.transform.rotation
+                        }.Post();
+                    }*/
+                }
+                __instance.transform.parent = null;
+                __instance.TransformParent = __instance.Structure.transform;
+                __instance.Parent();
+                __instance.transform.localScale = Vector3.one;
+                __instance.Structure.AddConstruction(__instance);
+
+                return false;
             }
             return true;
         }

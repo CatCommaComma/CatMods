@@ -2,7 +2,7 @@
     "Id": "SDPublicFramework",
     "DisplayName": "Stranded Deep Public Framework",
     "Author": "cat,,",
-    "Version": "0.04.03",
+    "Version": "0.04.06",
     "AssemblyName": "SDPublicFramework.dll",
     "EntryMethod": "SDPublicFramework.Main.Load",
     "HomePage": "https://www.nexusmods.com/strandeddeep/mods/216"

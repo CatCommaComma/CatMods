@@ -271,7 +271,7 @@ namespace SDPublicFramework
                                 CraftingCombination combination = new CraftingCombination();
 
                                 combination.Name = splitLine[1];
-                                bool isNewItem = bool.Parse(DeserializeValue(reader));
+                                bool isNewItem = bool.Parse(DeserializeValue("new", reader));
 
                                 if (SetupCombination(isNewItem, combination, reader, out ModdedCraftingCombo newCombo))
                                 {
@@ -343,14 +343,28 @@ namespace SDPublicFramework
 
                     if (prefab != null)
                     {
-                        if (_moddedPrefabs.ContainsKey(id) || _nameToId.ContainsKey(prefab.name))
+                        //CraftingType craftingType = prefab.GetComponent<BaseObject>().CraftingType;
+                        //int ctype = (int)craftingType.InteractiveType;
+                        //int a = 0xbbbbb03;
+
+
+                        if (_moddedPrefabs.ContainsKey(id))
                         {
-                            Logger.Warning($"Prefabs: Item with id [{id}] OR name [{prefab.name}] already exists.");
+                            Logger.Warning($"Prefabs: Item with id [{id}] already exists.");
                         }
+                        else if (_nameToId.ContainsKey(prefab.name))
+                        {
+                            Logger.Warning($"Prefabs: Item with name [{prefab.name}] already exists.");
+                        }
+                        /*else if (_crafingTypeToId.ContainsKey(craftingType))
+                        {
+                            Logger.Warning($"Prefabs: Item with crafting type [{craftingType}] already exists.");
+                        }*/
                         else
                         {
                             _moddedPrefabs.Add(id, prefab);
                             _nameToId.Add(prefab.name, id);
+                            //_crafingTypeToId.Add(craftingType, id);
                         }
                     }
                 }
@@ -367,8 +381,8 @@ namespace SDPublicFramework
 
                 if (splitLine[0] == "type")
                 {
-                    int number = int.Parse(DeserializeValue(reader));
-                    string description = DeserializeValue(reader);
+                    int number = int.Parse(DeserializeValue("number", reader));
+                    string description = DeserializeValue("description", reader);
 
                     if (splitLine[1] == "attribute")
                     {
@@ -392,10 +406,10 @@ namespace SDPublicFramework
         {
             try
             {
+                craftingCombination.Term = DeserializeValue("term", reader);
+
                 if (isNew)
                 {
-                    craftingCombination.Term = DeserializeValue(reader);
-
                     foreach (Sprite sprite in _mediumIcons)
                     {
                         if (sprite.name == craftingCombination.Name)
@@ -409,41 +423,39 @@ namespace SDPublicFramework
                 }
                 else
                 {
-                    craftingCombination.Term = DeserializeValue(reader);
-
-                    craftingCombination.PrefabAssetPath = DeserializeValue(reader);
-                    craftingCombination.SpriteAssetPath = DeserializeValue(reader);
+                    craftingCombination.PrefabAssetPath = DeserializeValue("prefabpath", reader);
+                    craftingCombination.SpriteAssetPath = DeserializeValue("spritepath", reader);
                     craftingCombination.Sprite = Resources.Load<Sprite>(craftingCombination.SpriteAssetPath);
                 }
 
-                bool unlocked = bool.Parse(DeserializeValue(reader));
+                bool unlocked = bool.Parse(DeserializeValue("unlocked", reader));
 
                 craftingCombination.Lockable = !unlocked;
                 craftingCombination.Unlocked = unlocked;
 
                 craftingCombination.IsDynamic = false;
 
-                craftingCombination.Limit = int.Parse(DeserializeValue(reader));
-                craftingCombination.IsExtension = bool.Parse(DeserializeValue(reader));
+                craftingCombination.Limit = int.Parse(DeserializeValue("limit", reader));
+                craftingCombination.IsExtension = bool.Parse(DeserializeValue("isextension", reader));
 
-                craftingCombination.CraftsmanshipLevelRequired = int.Parse(DeserializeValue(reader));
-                craftingCombination.ExpRewardOnCraft = float.Parse(DeserializeValue(reader));
+                craftingCombination.CraftsmanshipLevelRequired = int.Parse(DeserializeValue("craftsmanshiplevelrequired", reader));
+                craftingCombination.ExpRewardOnCraft = float.Parse(DeserializeValue("exprewardoncraft", reader));
 
-                string[] resultCraftingType = DeserializeAll(reader);
+                string[] resultCraftingType = DeserializeAll("resultcraftingtype", reader);
                 craftingCombination.CraftingType = new CraftingType((AttributeType)int.Parse(resultCraftingType[1]), (InteractiveType)int.Parse(resultCraftingType[2]));
 
-                int n = int.Parse(DeserializeValue(reader));
+                int materialCount = int.Parse(DeserializeValue("materialcount", reader));
 
-                for (int i = 0; i < n; i++)
+                for (int i = 0; i < materialCount; i++)
                 {
-                    string[] materialCraftingType = DeserializeAll(reader);
+                    string[] materialCraftingType = DeserializeAll("materialcraftingtype", reader);
                     CraftingType material = new CraftingType((AttributeType)int.Parse(materialCraftingType[1]), (InteractiveType)int.Parse(materialCraftingType[2]));
 
                     craftingCombination.Materials.Add(material);
                 }
 
-                string subcategoryName = DeserializeValue(reader);
-                string categoryName = DeserializeValue(reader);
+                string subcategoryName = DeserializeValue("subcategory", reader);
+                string categoryName = DeserializeValue("category", reader);
 
                 result = new ModdedCraftingCombo(categoryName, subcategoryName, craftingCombination);
                 return true;
@@ -536,8 +548,27 @@ namespace SDPublicFramework
             {
                 try
                 {
-                    CraftingType craftingType = GetModdedPrefab(sprite.name).GetComponent<BaseObject>().CraftingType;
-                    otherspritesM.Add(new IconKey { CraftingType = craftingType, CustomType = ECustomType.None }, sprite);
+                    string item = sprite.name;
+                    ECustomType customType = ECustomType.None;
+
+                    if (item.EndsWith("SPOILED"))
+                    {
+                        item = item.Substring(0, item.Length - "SPOILED".Length);
+                        customType = ECustomType.Spoiled;
+                    }
+                    else if (item.EndsWith("COOKED"))
+                    {
+                        item = item.Substring(0, item.Length - "COOKED".Length);
+                        customType = ECustomType.Cooked;
+                    }
+                    else if (item.EndsWith("SMOKED"))
+                    {
+                        item = item.Substring(0, item.Length - "SMOKED".Length);
+                        customType = ECustomType.Smoked;
+                    }
+
+                    CraftingType craftingType = GetModdedPrefab(item).GetComponent<BaseObject>().CraftingType;
+                    otherspritesM.Add(new IconKey { CraftingType = craftingType, CustomType = customType }, sprite);
                 }
                 catch (Exception ex)
                 {
@@ -655,6 +686,7 @@ namespace SDPublicFramework
 
         internal static Dictionary<uint, GameObject> _moddedPrefabs = new Dictionary<uint, GameObject>();
         private static Dictionary<string, uint> _nameToId = new Dictionary<string, uint>();
+
         private static Dictionary<uint, CustomSound> _customClips = new Dictionary<uint, CustomSound>();
 
         private static List<AssetBundle> _assetBundles = new List<AssetBundle>();

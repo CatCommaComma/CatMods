@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
 
@@ -239,7 +238,7 @@ namespace SDPublicFramework
             {
                 GameObject prefab; //= PlayerRegistry.LocalPlayer.GameInput.Raycaster.CurrentObject.gameObject;
                 RaycastHit hit;
-                Physics.Raycast(PlayerRegistry.LocalPlayer.PlayerCamera.transform.position, PlayerRegistry.LocalPlayer.PlayerCamera.transform.forward, out hit, 15f);
+                Physics.Raycast(PlayerRegistry.LocalPlayer.PlayerCamera.transform.position, PlayerRegistry.LocalPlayer.PlayerCamera.transform.forward, out hit, 15f, ~(1 << LayerMask.NameToLayer("Player")));
 
                 if (hit.collider == null)
                 {
@@ -250,27 +249,35 @@ namespace SDPublicFramework
 
                 prefab = hit.collider.gameObject;
 
-                try
-                {
-                    Logger.Log();
-                    Logger.Log("---------------------------------------------");
-                    Logger.Log($"ANALYZING PREFAB OF NAME '{prefab.name}':");
-                    Logger.Log("----------------- HERITAGE ------------------");
-                    Logger.Log();
-                    PrintHeritage(prefab.transform, 0);
-                    Logger.Log();
-                    Logger.Log("---------------- COMPONENTS -----------------");
-                    PrintComponents(prefab);
-                    Logger.Log();
-                    Logger.Log("---------------------------------------------");
-                    Logger.Log();
-                }
-                catch (Exception ex)
-                {
-                    Logger.Exception("Error during log all info: " + ex);
-                }
+                Logger.Log("--------------- HIT COLLIDER ----------------");
+                Logger.Log();
+                Logger.Log($"Tag: {hit.collider.tag}");
+                PrintAll(prefab);
 
                 debugger.LogAllInformation = false;
+            }
+        }
+
+        public static void PrintAll(GameObject prefab)
+        {
+            try
+            {
+                Logger.Log();
+                Logger.Log("---------------------------------------------");
+                Logger.Log($"ANALYZING PREFAB OF NAME '{prefab.name}':");
+                Logger.Log("----------------- HERITAGE ------------------");
+                Logger.Log();
+                PrintHeritage(prefab.transform, 0, true);
+                Logger.Log();
+                Logger.Log("---------------- COMPONENTS -----------------");
+                PrintComponents(prefab);
+                Logger.Log();
+                Logger.Log("---------------------------------------------");
+                Logger.Log();
+            }
+            catch (Exception ex)
+            {
+                Logger.Exception("Error during log all info: " + ex);
             }
         }
 
@@ -297,17 +304,37 @@ namespace SDPublicFramework
 
         private static List<Component> _returnedComponents = new List<Component>();
 
-        public static void PrintHeritage(Transform parent, int depth)
+        public static void PrintHeritage(Transform parent, int depth, bool withShader = false)
         {
-            int childCount = parent.childCount;
             string depthStr = "";
 
-            for (int i=0;i<depth;i++) depthStr += " ";
+            for (int i=0; i<depth; i++) depthStr += " ";
 
-            for (int i=0;i<childCount;i++)
+            string info = depthStr + parent.name;
+            if (withShader)
             {
-                Logger.Log(depthStr + parent.GetChild(i).name);
-                PrintHeritage(parent.GetChild(i), depth + 1);
+                Shader shader = parent.gameObject.GetComponent<Renderer>()?.material?.shader;
+                if (shader != null)
+                {
+                    info += $" Shader found - '{shader.name}'";
+                    int n = shader.GetPropertyCount();
+
+                    for (int j = 0; j < n; j++)
+                    {
+                        info += $" |{j}| {shader.GetPropertyName(j)} - {(shader.GetPropertyType(j))}";
+                    }
+                }
+                else
+                {
+                    info += " No shader found.";
+                }
+            }
+
+            Logger.Log(info);
+
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                PrintHeritage(parent.GetChild(i), depth + 1, withShader);
             }
         }
 
@@ -335,15 +362,10 @@ namespace SDPublicFramework
         public static void PrintFields(Type type, object instance)
         {
             FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            foreach (var f in fields)
+            foreach (FieldInfo field in fields)
             {
-                object value = f.GetValue(instance);
-
-                StringBuilder stringBuilder = new StringBuilder("");
-                stringBuilder.Append($"Field: {f.Name}");
-                stringBuilder.Append($", Value: {value}");
-
-                Logger.Log(stringBuilder.ToString());
+                object value = field.GetValue(instance);
+                Logger.Log($"Field: {field.Name}  |1|  Value: {value}  |2|  Type: {field.FieldType}  |3|  Access: {(field.IsPrivate ? "private" : "public")}  |4|  Static: {field.IsStatic})");
             }
         }
 
@@ -416,15 +438,67 @@ namespace SDPublicFramework
                     ChosenBasePrefabName = ChosenBaseObject.name;
                     ChosenPrefabPrefabPath = baseObject.name;
                     ChosenPrefabIconPath = baseObject.name;
-
-                    ChosenBasePrefabId = ChosenBaseObject.PrefabId;
-                    ChosenBasePrefabMiniGuid = ChosenBaseObject.ReferenceId;
                 }
                 catch
                 {
                     ChosenPrefab = null;
                 }
             }
+
+            ChosenBasePrefabId = baseObject.PrefabId;
+            ChosenBasePrefabMiniGuid = baseObject.ReferenceId;
+        }
+
+        public static bool ValidateMedical(InteractiveObject_MEDICAL item, PlayerEffect effect, bool add)
+        {
+            IPlayer user = PlayerUtilities.GetPlayerFromId(item.OwnerId);
+
+            if (user != null && item != null && item.DurabilityPoints > 0)
+            {
+                return ValidateEffect(effect, add, user);
+            }
+
+            return false;
+        }
+
+        public static bool ValidateFood(InteractiveObject_FOOD item, PlayerEffect effect, bool add)
+        {
+            IPlayer user = PlayerUtilities.GetPlayerFromId(item.OwnerId);
+
+            if (user != null && item != null && item.Servings > 0)
+            {
+                return ValidateEffect(effect, add, user);
+            }
+
+            return false;
+        }
+
+        private static bool ValidateEffect(PlayerEffect effect, bool add, IPlayer user)
+        {
+            if (add)
+            {
+                return user.Statistics.ApplyStatusEffect(effect);
+            }
+            else
+            {
+                return user.Statistics.RemoveStatusEffect(effect);
+            }
+        }
+
+        public static AudioClip MedicalConsumableSound(IConsumableSound customSound)
+        {
+            return FoodConsumableSound(true, customSound);
+        }
+
+        public static AudioClip FoodConsumableSound(bool isWater, IConsumableSound customSound)
+        {
+            if (customSound != null)
+            {
+                if (customSound.ConsumableClip == null) Logger.Exception("Consume sound attached to IConsumableSound is null.");
+                return customSound.ConsumableClip;
+            }
+            else if (isWater) return BasicSounds.DrinkSound;
+            else return BasicSounds.EatSound;
         }
 
         public static InteractiveObject ChosenPrefab { get; set; }

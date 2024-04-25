@@ -161,11 +161,12 @@ namespace SDPublicFramework
 
             if (properties[0] == PrefabProperty.CUSTOMCONSTRUCTION)
             {
+                id = uint.Parse(Framework.DeserializeValue("prefabid", sr));
                 return SetupCustomConstruction(prefabname, sr, prefab, id);
             }
             else if (properties[0] == PrefabProperty.CONSTRUCTION)
             {
-                return FinishConstruction(prefabname, sr, prefab, null);
+                return FinishConstruction(prefabname, sr, prefab, id, null);
             }
 
             InteractiveObject interactiveComponent = null;
@@ -644,7 +645,7 @@ namespace SDPublicFramework
                 return null;
             }
 
-            var customComponent = prefab.AddComponent(customType);
+            Component customComponent = prefab.AddComponent(customType);
             Constructing constructingComponent = customComponent as Constructing;
 
             if (constructingComponent == null)
@@ -653,30 +654,60 @@ namespace SDPublicFramework
                 return null;
             }
 
-            return FinishConstruction(prefabname, sr, prefab, constructingComponent);
+            return FinishConstruction(prefabname, sr, prefab, id, constructingComponent);
         }
 
-        private static GameObject FinishConstruction(string prefabname, StreamReader sr, GameObject prefab, Constructing constructingComponent)
+        private static GameObject FinishConstruction(string prefabname, StreamReader sr, GameObject prefab, uint id, Constructing constructingComponent)
         {
+            Logger.Warning("Do not use constructions, they will not work. This is a test feature.");
+
             bool hasConnector = true;
 
+            //crafting and placing
+            typeof(Constructing).GetField("handlePlayerColission", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, true);
+            typeof(Constructing).GetField("_craftImmediate", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, false);
+
+            typeof(Constructing).GetField("_placingDistance", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, 4);
+            typeof(Constructing).GetField("_rotationMode", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, Constructing.ERotationMode.Free);
+            typeof(Constructing).GetField("_rotationAngle", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, 90);
+            typeof(Constructing).GetField("_proximityDistance", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, 4.5f);
+
+            typeof(Constructing).GetField("_proximityChecking", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, ConstructingProximityCheckMode.None);
+
+            typeof(Constructing).GetField("_ghostRenderer", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, prefab.transform.Find("Ghost").GetChild(0).GetComponent<MeshRenderer>());
+            typeof(Constructing).GetField("_ghostMesh", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, prefab.transform.Find("Ghost").GetChild(0).GetComponent<MeshFilter>().mesh);
+            typeof(Constructing).GetField("_ghostObject", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, prefab.transform.Find("Ghost").gameObject);
+
+            constructingComponent.MaximumHealthPoints = 100;
+
+            //connector when first placing
             if (hasConnector)
             {
                 Connector connector = prefab.AddComponent<Connector>();
                 connector.Constructing = constructingComponent;
 
-                typeof(Connector).GetField("_type", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(ConnectorType.LIGHT_HOOK, connector);
-                typeof(Connector).GetField("_useTransformPositionForSnapping", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(true, connector);
-                typeof(Connector).GetField("_checkType", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(true, connector);
-                typeof(Connector).GetField("_isValid", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(true, connector);
-                typeof(Connector).GetField("_canSet", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(true, connector);
+                typeof(Connector).GetField("_type", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(connector, ConnectorType.LIGHT_HOOK);
+                typeof(Connector).GetField("_useTransformPositionForSnapping", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(connector, true);
+                typeof(Connector).GetField("_checkType", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(connector, true);
+                typeof(Connector).GetField("_isValid", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(connector, true);
+                typeof(Connector).GetField("_canSet", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(connector, true);
+
+                typeof(Constructing).GetField("_myConnector", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(constructingComponent, connector);
+
+                //Type enumType = typeof(Connector).GetNestedType("EConnectMode", BindingFlags.NonPublic);
+                //FieldInfo freeField = enumType.GetField("Free", BindingFlags.Public | BindingFlags.Static);
+                //FieldInfo requireConnectorField = enumType.GetField("RequireConnector", BindingFlags.Public | BindingFlags.Static);
             }
 
-            //typeof(Constructing).GetField("_placingDistance", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(2, constructingComponent);
-            //typeof(Constructing).GetField("_rotationAngle", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(90f, constructingComponent);
+            //other info
+            string[] crafttype = Framework.DeserializeAll("craftingtype", sr);
+            CraftingType ct = new CraftingType((AttributeType)int.Parse(crafttype[1]), (InteractiveType)int.Parse(crafttype[2]));
+            fi_craftingType.SetValue(prefab.GetComponent<BaseObject>(), ct);
 
-            //typeof(Constructing).GetField("_ghostObject", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(prefab, constructingComponent);
-            //constructingComponent.MaximumHealthPoints = 1;
+            constructingComponent.PrefabId = id;
+            constructingComponent.name = prefabname;
+            constructingComponent.DisplayName = "Gattling Harpoon";
+            fi_originalDisplayName.SetValue(constructingComponent, constructingComponent.DisplayName);
 
             UnityEngine.Object.DontDestroyOnLoad(prefab);
             return prefab;

@@ -2,8 +2,9 @@
     "Id": "CatsItems",
     "DisplayName": "Cat's Items",
     "Author": "cat,,",
-    "Version": "0.04.03",
+    "Version": "0.05.01",
     "LoadAfter": [ "SDPublicFramework" ],
     "AssemblyName": "CatsItems.dll",
-    "EntryMethod": "CatsItems.Main.Load"
+    "EntryMethod": "CatsItems.Main.Load",
+    "HomePage": "https://www.nexusmods.com/strandeddeep/mods/237"
 }

@@ -5,7 +5,7 @@ using HarmonyLib;
 using System.Reflection;
 using SDPublicFramework;
 using System.Collections.Generic;
-using System;
+using Beam.Utilities;
 
 namespace CatsItems
 {
@@ -17,6 +17,24 @@ namespace CatsItems
             Framework.CraftingLogic.Add("regular_corrugatedscrap", (baseObject, combination, crafter, player, cachedItems) => CorrugatedScrapFromBarrel(baseObject, crafter, player, combination));
             Framework.CraftingLogic.Add("regular_endgamecrate", (baseObject, combination, crafter, player, cachedItems) => CraftEndgameCrate(baseObject));
             Framework.CraftingLogic.Add("regular_barrel", (baseObject, combination, crafter, player, cachedItems) => CraftBarrel(baseObject, player));
+
+            Framework.CraftingLogic.Add("mod_csharkbait", (baseObject, combination, crafter, player, cachedItems) => SharkBait(baseObject, cachedItems));
+        }
+
+        private static bool SharkBait(BaseObject baseObject, IList<IBase> cachedItems)
+        {
+            (baseObject as Cat_SharkBait).TimeCrafted = GameTime.Now;
+
+            foreach (IBase item in cachedItems)
+            {
+                if (item.CraftingType.InteractiveType == InteractiveType.FOOD_MEAT && item.gameObject.GetComponent<InteractiveObject_FOOD>().Spoiled)
+                {
+                    (baseObject as Cat_SharkBait).TimeCrafted.RemoveHours(24f);
+                    break;
+                }
+            }
+
+            return true;
         }
 
         private static bool FlaskFromDrinkableCoconut(BaseObject baseObject, IList<IBase> cachedItems)

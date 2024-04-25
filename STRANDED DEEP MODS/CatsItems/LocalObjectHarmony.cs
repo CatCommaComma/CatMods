@@ -7,6 +7,8 @@ using Beam.Utilities;
 using SDPublicFramework;
 using System.Collections.Generic;
 using System;
+using Beam.UI;
+using System.Management.Instrumentation;
 
 namespace CatsItems
 {
@@ -77,7 +79,7 @@ namespace CatsItems
                 {
                     if (_foodRef(__instance).PrefabId == 405U)
                     {
-                        __instance.IsCooked = true;
+                        (_foodRef(__instance) as Cat_Bucket).BoilToFresh();
                         return false;
                     }
                 }
@@ -97,11 +99,63 @@ namespace CatsItems
 
                     if (currentCampfire != null && currentCampfire.Food != null && currentCampfire.Food.PrefabId == 405U)
                     {
+                        (currentCampfire.Food as Cat_Bucket).StartBoiling();
                         return false;
                     }
                 }
 
                 return true;
+            }
+        }
+
+        [HarmonyPatch(typeof(CampFireAudio), nameof(CampFireAudio.CampFire_StoppedCooking), new Type[] { typeof(IBase), typeof(IBaseActionEventData) })]
+        class CampFireAudio_CampFire_StoppedCooking_Patch
+        {
+            private static void Postfix(CampFireAudio __instance, IBase sender, IBaseActionEventData data)
+            {
+                if (sender.gameObject != null)
+                {
+                    Construction_CAMPFIRE currentCampfire = sender.gameObject.GetComponent<Construction_CAMPFIRE>();
+
+                    if (currentCampfire != null && currentCampfire.Food != null && currentCampfire.Food.PrefabId == 405U)
+                    {
+                        (currentCampfire.Food as Cat_Bucket).StopBoiling();
+                    }
+                }
+            }
+        }
+
+        [HarmonyPatch(typeof(CampFireAudio), nameof(CampFireAudio.CampFire_Ignited), new Type[] { typeof(IBase), typeof(IBaseActionEventData) })]
+        class CampFireAudio_CampFire_Ignited_Patch
+        {
+            private static void Postfix(CampFireAudio __instance, IBase sender, IBaseActionEventData data)
+            {
+                if (sender.gameObject != null)
+                {
+                    Construction_CAMPFIRE currentCampfire = sender.gameObject.GetComponent<Construction_CAMPFIRE>();
+
+                    if (currentCampfire != null && currentCampfire.Food != null && currentCampfire.Food.PrefabId == 405U)
+                    {
+                        (currentCampfire.Food as Cat_Bucket).StartBoiling();
+                    }
+                }
+            }
+        }
+
+        [HarmonyPatch(typeof(CampFireAudio), nameof(CampFireAudio.CampFire_Extinguished), new Type[] { typeof(IBase), typeof(IBaseActionEventData) })]
+        class CampFireAudio_CampFire_Extinguished_Patch
+        {
+            private static void Postfix(CampFireAudio __instance, IBase sender, IBaseActionEventData data)
+            {
+                if (sender.gameObject != null)
+                {
+                    Construction_CAMPFIRE currentCampfire = sender.gameObject.GetComponent<Construction_CAMPFIRE>();
+
+                    if (currentCampfire != null && currentCampfire.Food != null && currentCampfire.Food.PrefabId == 405U)
+                    {
+                        (currentCampfire.Food as Cat_Bucket).StopBoiling();
+                    }
+                }
             }
         }
 
@@ -155,6 +209,22 @@ namespace CatsItems
         }
 
 
+        /******************************** LAND SHARK SIGN ***********************************/
+
+
+        [HarmonyPatch(typeof(Constructing_HOOK), "CanAttach", new Type[] { typeof(IAttachable) })]
+        class Constructing_HOOK_CanAttach_Patch
+        {
+            private static void Postfix(IAttachable attachable, ref bool __result)
+            {
+                if (!__result)
+                {
+                    __result = attachable.transform.gameObject.name.StartsWith("mod_csharksign");
+                }
+            }
+        }
+
+
         /******************************** POCKET KNIFE ***********************************/
 
 
@@ -192,25 +262,35 @@ namespace CatsItems
             }
         }
 
-        //for skinning anim
-        /*[HarmonyPatch(typeof(EventItemProxies), nameof(EventItemProxies.GetProxy), new Type[] {typeof(CraftingType)})]
+        //for skinning animation
+        [HarmonyPatch(typeof(EventItemProxies), nameof(EventItemProxies.GetProxy), new Type[] {typeof(CraftingType)})]
         class EventItemProxies_GetProxy_Patch
         {
-            private static GameObject _pocketKnifeProxy;
+            private static GameObject _pocketKnifeProxy = null;
 
             private static void Postfix(EventItemProxies __instance, ref GameObject __result, CraftingType type)
             {
-                /*if (PlayerRegistry.LocalPlayer.Holder.CurrentObject.PrefabId == 403U)
+                if (type.InteractiveType == InteractiveType.TOOLS_KNIFE && PlayerRegistry.LocalPlayer.Holder.CurrentObject != null && PlayerRegistry.LocalPlayer.Holder.CurrentObject.PrefabId == 403U)
                 {
-                    if (_pocketKnifeProxy  == null)
+                    if (_pocketKnifeProxy == null)
                     {
-                        _pocketKnifeProxy = PrefabFactory.InstantiateModdedObject(403U, false).gameObject;
+                        BaseObject proxy = PrefabFactory.InstantiateModdedObject(403U, true);
+                        proxy.GetComponent<Rigidbody>().isKinematic = true;
+                        proxy.transform.SetParent(__result.transform.parent, false);
+                        proxy.transform.position = __result.transform.position;
+                        proxy.transform.localRotation = __result.transform.localRotation;
+
+                        //fine tune
+                        proxy.transform.Rotate(new Vector3(0,180,0),Space.Self);//sides -towards //to sides (-away, +towards player rightish)    //up+ down-
+                        proxy.transform.localPosition = new Vector3(proxy.transform.localPosition.x, proxy.transform.localPosition.y - 0.03f, proxy.transform.localPosition.z + 0.13f);
+
+                        _pocketKnifeProxy = proxy.gameObject;
                     }
 
                     __result = _pocketKnifeProxy;
                 }
             }
-        }*/
+        }
 
         //for hiding knife blade
         [HarmonyPatch(typeof(InteractiveObject), nameof(InteractiveObject.SetLOD), new Type[] { typeof(int) })]
@@ -367,50 +447,40 @@ namespace CatsItems
         {
             private static void Postfix(Construction_CAMPFIRE __instance, IPlayer player, IBase obj)
             {
-                if (!obj.IsNullOrDestroyed() && __instance.IsBurning && obj.gameObject.name == "mod_clighter")
+                if (!obj.IsNullOrDestroyed() && __instance.IsBurning && obj.gameObject.name.StartsWith("mod_clighter"))
                 {
-                    InteractiveObject interactiveObject = obj.gameObject.GetComponent<InteractiveObject>();
+                    InteractiveObject lighter = obj.gameObject.GetComponent<InteractiveObject>();
 
-                    if (interactiveObject.DurabilityPoints > 1.9f)
+                    if (lighter.DurabilityPoints > 0.01f)
                     {
-                        interactiveObject.DurabilityPoints -= 2f;
+                        lighter.DurabilityPoints -= 3f;
                     }
                 }
             }
         }
 
-        [HarmonyPatch(typeof(Interactive_FIRE_TORCH), nameof(Interactive_FIRE_TORCH.Interact), new Type[] { typeof(IPlayer) })]
+        [HarmonyPatch(typeof(Interactive_FIRE_TORCH), nameof(Interactive_FIRE_TORCH.InteractWithObject), new Type[] { typeof(IPlayer), typeof(IBase) })]
         class Interactive_FIRE_TORCH_InteractWithObject_Patch
         {
-            private static bool Prefix(Interactive_FIRE_TORCH __instance, ref bool __result, IPlayer player)
+            private static bool Prefix(Interactive_FIRE_TORCH __instance, ref bool __result, IPlayer player, IBase obj)
             {
-                if (!player.Holder.CurrentObject.IsNullOrDestroyed())
+                if (!obj.IsNullOrDestroyed() && obj.gameObject.name.StartsWith("mod_clighter"))
                 {
-                    IFlammable flammable = player.Holder.CurrentObject as IFlammable;
-                    if (flammable != null && !__instance.IsBurning)
-                    {
-                        if (flammable.IsBurning)
-                        {
-                            GameObject gameObject = player.Holder.CurrentObject.gameObject;
-                            if (gameObject.name == "mod_clighter")
-                            {
-                                InteractiveObject interactiveObject = gameObject.GetComponent<InteractiveObject>();
-                                if (interactiveObject.DurabilityPoints >= 0.9f)
-                                {
-                                    interactiveObject.DurabilityPoints--;
-                                }
-                                else
-                                {
-                                    __result = false;
-                                    return false;
-                                }
-                            }
+                    InteractiveObject lighter = obj.gameObject.GetComponent<InteractiveObject>();
 
-                            __instance.Ignite();
-                            __result = true;
-                            return false;
-                        }
+                    if (lighter != null && lighter.DurabilityPoints > 0.01f && !__instance.IsBurning)
+                    {
+                        lighter.DurabilityPoints -= 1.5f;
+                        __instance.Ignite();
+                        __result = true;
                     }
+                    else
+                    {
+                        AccessTools.Method(typeof(Interactive_FIRE_TORCH), "Extinguish").Invoke(__instance, null);
+                        __result = false;
+                    }
+
+                    return false;
                 }
 
                 return true;
@@ -436,9 +506,9 @@ namespace CatsItems
         }
 
 
-        /******************************************* SHARK FIN SPAWN AT SHARK ************************************************/
+        /******************************************* SHARK FIN ************************************************/
 
-
+        //spawn at shark
         [HarmonyPatch(typeof(IDisintegratableMixins), nameof(IDisintegratableMixins.Disintegrate), new Type[] { typeof(IDisintegratable) })]
         class IDisintegratableMixins_Disintegrate_Patch
         {
@@ -471,6 +541,31 @@ namespace CatsItems
                 }
             }
 
+            //so that the fin doesn't look like pure coal when smoked
+            [HarmonyPatch(typeof(Smoking), "SetSmokingInShader")]
+            class Smoking_SetSmokingInShader_Patch
+            {
+                private static readonly AccessTools.FieldRef<Smoking, float> _smokingHoursRef = AccessTools.FieldRefAccess<Smoking, float>("_smokingHours");
+                private static readonly AccessTools.FieldRef<Smoking, float> _originalSmokingHoursRef = AccessTools.FieldRefAccess<Smoking, float>("_originalSmokingHours");
+
+                private static bool Prefix(Smoking __instance)
+                {
+                    if (__instance.Food.PrefabId == 417)
+                    {
+                        float value = __instance.IsSmoked ? 1f : Mathf.Clamp01(1f - _smokingHoursRef(__instance) / _originalSmokingHoursRef(__instance));
+                        for (int i = 0; i < __instance.Food.renderers.Length; i++)
+                        {
+                            __instance.Food.renderers[i].GetPropertyBlock(__instance.Food.PropertyBlock);
+                            __instance.Food.PropertyBlock.SetFloat("_Smoked", value * 0.7f);
+                            __instance.Food.renderers[i].SetPropertyBlock(__instance.Food.PropertyBlock);
+                        }
+
+                        return false;
+                    }
+                    return true;
+                }
+            }
+
 
             /******************************************* FLARE ************************************************/
 
@@ -491,6 +586,8 @@ namespace CatsItems
                         //because .GetComponent each frame is bad
                         if (!_flares.ContainsKey(__instance)) _flares.Add(__instance, __instance.transform.parent.gameObject.GetComponent<Cat_Flare>());
                         Cat_Flare flare = _flares[__instance];
+
+                        __instance.transform.position = flare.Lid.position;
 
                         if (flare.Drowning)
                         {
@@ -527,7 +624,7 @@ namespace CatsItems
                             _hoveringRef(__instance) = true;
                         }
 
-                        if (__instance.transform.position.y < 0.1f && !flare.Drowning)
+                        if (__instance.transform.position.y < 0.01f && !flare.Drowning)
                         {
                             flare.InitialIntensity = flare.CurrentLight.intensity;
                             flare.DrownAt = _lifeTimeRef(__instance);
@@ -557,9 +654,9 @@ namespace CatsItems
 
                 private static Dictionary<FlareGunProjectile, Cat_Flare> _flares = new Dictionary<FlareGunProjectile, Cat_Flare>();
                 private const float SECONDS_TO_EXTINGUISH_DROWN = 1.5f;
-                private const float SECONDS_TO_DESTROY_DROWN = 6f;
+                private const float SECONDS_TO_DESTROY_DROWN = 5f;
                 private const float SECONDS_LIFETIME = 200f;
-                private const float SECONDS_TO_DESTROY = 12f;
+                private const float SECONDS_TO_DESTROY = 5f;
             }
 
 
@@ -602,6 +699,90 @@ namespace CatsItems
                 private static float _extraVisibility = 0f;
                 private const float MAX_EXTRA_VISIBILITY = 11f;
             }
+
+
+            /******************************************* SHARK BAIT ICON CHANGE ************************************************/
+
+
+            [HarmonyPatch(typeof(InventoryData), nameof(InventoryData.GetIcon))]
+            class InventoryData_GetIcon_Patch
+            {
+                private static void Postfix(ref Sprite __result, InventoryData __instance)
+                {
+                    Cat_SharkBait bait = __instance.Value as Cat_SharkBait;
+
+                    if (bait != null && bait.Matured && Main.SpoiledSharkBaitSprite != null)
+                    {
+                        __result = Main.SpoiledSharkBaitSprite;
+                    }
+                }
+            }
+
+
+            /******************************************* MITCHELL ************************************************/
+
+            //horrible but unfair otherwise
+            [HarmonyPatch(typeof(ObjectPoolManager), "InternalCreate", new Type[] { typeof(GameObject), typeof(Vector3), typeof(Quaternion) })]
+            class ObjectPoolManager_InternalCreate_Patch
+            {
+                private static bool Prefix(GameObject prefab, Vector3 position, Quaternion rotation, ref GameObject __result)
+                {
+                    if (prefab.name.Contains("Starfish_Poisonous"))
+                    {
+                        foreach (Vector3 vector3 in UrchinDecayer.BannedRespawnPositions)
+                        {
+                            if (vector3.Equals(position))
+                            {
+                                __result = new GameObject("Destroyed_Starfish");
+                                return false;
+                            }
+                        }
+                    }
+
+                    return true;
+                }
+            }
+
+
+            //************** TESTING ***************/
+
+
+            /*[HarmonyPatch(typeof(UnityEngine.Object), nameof(UnityEngine.Object.Instantiate), new Type[] {typeof(GameObject)})]
+            class Object_Instantiate1_Patch
+            {
+                private static void Postfix(ref UnityEngine.Object __result)
+                {
+                    Debug.Log($"One: {__result.name}");
+                }
+            }
+
+            [HarmonyPatch(typeof(UnityEngine.Object), nameof(UnityEngine.Object.Instantiate), new Type[] { typeof(GameObject), typeof(Transform) })]
+            class Object_Instantiate4_Patch
+            {
+                private static void Postfix(ref UnityEngine.Object __result)
+                {
+                    Debug.Log($"Two: {__result.name}");
+                }
+            }
+
+            [HarmonyPatch(typeof(UnityEngine.Object), nameof(UnityEngine.Object.Instantiate), new Type[] { typeof(GameObject), typeof(Vector3), typeof(Quaternion) })]
+            class Object_Instantiate2_Patch
+            {
+                private static void Postfix(ref UnityEngine.Object __result)
+                {
+                    Debug.Log($"Three: {__result.name}");
+                    if (__result.name.Contains("Starfish_Poisonous")) Debug.Log(Environment.StackTrace);
+                }
+            }
+
+            [HarmonyPatch(typeof(UnityEngine.Object), nameof(UnityEngine.Object.Instantiate), new Type[] { typeof(GameObject), typeof(Vector3), typeof(Quaternion), typeof(Transform) })]
+            class Object_Instantiate3_Patch
+            {
+                private static void Postfix(ref UnityEngine.Object __result)
+                {
+                    Debug.Log($"Four: {__result.name}");
+                }
+            }*/
         }
     }
 }

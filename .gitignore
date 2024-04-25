@@ -266,3 +266,8 @@ Properties/
 *.sln
 *.bak
 /STRANDED DEEP MODS/CatsItems/Cat_Loom.cs
+/STRANDED DEEP MODS/CatsItems/audio/filllighter.wav
+/STRANDED DEEP MODS/CatsItems/audio/lighterstrike.wav
+/STRANDED DEEP MODS/CatsItems/audio/poisonoushit.wav
+/STRANDED DEEP MODS/CatsItems/images/mod_csharkbaitSPOILED.png
+/STRANDED DEEP MODS/CatsItems/images/SharkMeatCooked_Diff.png

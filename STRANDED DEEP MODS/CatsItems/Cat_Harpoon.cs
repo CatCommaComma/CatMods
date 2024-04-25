@@ -1,6 +1,8 @@
 ﻿using Beam.Crafting;
 using Beam;
 using UnityEngine;
+using System.Collections;
+using Microsoft.Win32;
 
 namespace CatsItems
 {
@@ -20,21 +22,36 @@ namespace CatsItems
         //take ammo from inventory or load it up beforehand
         //design and make final mesh
 
-        public bool CanInteract
+        public bool CanInteract { get { return true; } set { CanInteract = value; } }
+
+        protected override void Awake()
         {
-            get
+            base.Awake();
+
+            //_cameraLocation = transform.GetChild(1).GetChild(0).GetChild(0).GetChild(0).GetChild(0);
+            //_horizontalRotator = transform.GetChild(1).GetChild(0).GetChild(0).GetChild(0).GetChild(0);
+            //_verticalRotator = transform.GetChild(1).GetChild(0).GetChild(0).GetChild(0).GetChild(0);
+            //_barrelEnd = transform.GetChild(1).GetChild(0).GetChild(0).GetChild(0).GetChild(0);
+        }
+
+        private void Update()
+        {
+            if (_mounted)
             {
-                return _canInteract;
-            }
-            set
-            {
-                _canInteract = value;
+                if (Input.GetKeyDown(KeyCode.Mouse0))
+                {
+
+                }
             }
         }
 
         string IInteractable.GetInteractionDescription(int playerId, IBase obj)
         {
-            if (obj == null) return "Press E to mount";
+            if (obj == null)
+            {
+                if (!_mounted) return "Press E to mount";
+                else return "Press E to dismount";
+            }
 
             return default;
         }
@@ -43,7 +60,7 @@ namespace CatsItems
         {
             if (player.Holder.CurrentObject == null)
             {
-                MountHarpoon(true, player);
+                MountHarpoon(player);
                 return true;
             }
 
@@ -51,55 +68,52 @@ namespace CatsItems
             return false;
         }
 
-        public override void OnBeginCrafting()
-        {
-            base.OnBeginCrafting();
-        }
-
         public bool InteractWithObject(IPlayer player, IBase obj)
         {
             return false;
         }
 
-        protected override void Awake()
+        private void MountHarpoon(IPlayer player)
         {
-            base.Awake();
+            _mounted = true;
+            _user = player;
 
-            _gunHolder = gameObject.transform.Find("GunHolder");
-            _gun = gameObject.transform.Find("Gun");
-            //Stand
-            //GunRotation
-            //StandPosition
-            //CameraPosition
+            _previousParent = player.PlayerCamera.transform.parent;
+            _previousPosition = player.PlayerCamera.transform.position;
+            _previousRotation = player.PlayerCamera.transform.rotation;
+
+            StartCoroutine(LerpCameraBetween(_previousPosition, _previousRotation, _cameraLocation.position, _cameraLocation.rotation));
         }
 
-        private void MountHarpoon(bool mount, IPlayer player)
+        private IEnumerator LerpCameraBetween(Vector3 previous, Quaternion previousR, Vector3 final, Quaternion finalR)
         {
-            isMounted = mount;
+            float timeElapsed = 0f;
 
-            if (mount)
+            while (1f>timeElapsed)
             {
+                timeElapsed+= Time.deltaTime;
 
-            }
-            else
-            {
+                _user.PlayerCamera.transform.position = Vector3.Lerp(previous, final, timeElapsed);
+                _user.PlayerCamera.transform.rotation = Quaternion.Lerp(previousR, finalR, timeElapsed);
 
+                yield return null;
             }
+
+            _user.PlayerCamera.transform.position = final;
+            _user.PlayerCamera.transform.rotation = finalR;
         }
 
-        private void Update()
-        {
-            if (isMounted)
-            {
+        private bool _mounted = false;
 
-            }
-        }
-
-        private bool _canInteract;
-        private bool isMounted = false;
+        private IPlayer _user;
 
         private Transform _cameraLocation;
-        private Transform _gunHolder;
-        private Transform _gun;
+        private Transform _horizontalRotator;
+        private Transform _verticalRotator;
+        private Transform _barrelEnd;
+
+        private Transform _previousParent;
+        private Vector3 _previousPosition;
+        private Quaternion _previousRotation;
     }
 }
