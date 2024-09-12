@@ -1,0 +1,9 @@
+﻿{
+    "Id": "SDimt",
+    "DisplayName": "Island Maker Tools",
+    "Author": "cat,,",
+    "Version": "1.0.1",
+    "AssemblyName": "IslandMakerTools.dll",
+    "EntryMethod": "IslandMakerTools.Main.Load",
+    "HomePage": "https://www.nexusmods.com/strandeddeep/mods/246"
+}
