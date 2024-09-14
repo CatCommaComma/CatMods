@@ -1,0 +1,9 @@
+﻿{
+    "Id": "FillableBarrels",
+    "DisplayName": "Fillable Barrels",
+    "Author": "Cat,,",
+    "Version": "1.2.4",
+    "AssemblyName": "FillableBarrels.dll",
+    "EntryMethod": "FillableBarrels.Main.Load",
+    "HomePage": "https://www.nexusmods.com/strandeddeep/mods/206"
+}

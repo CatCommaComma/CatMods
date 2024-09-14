@@ -1,0 +1,8 @@
+﻿{
+    "Id": "SDHantacoreSpray",
+    "DisplayName": "Anti Hantacore Spray",
+    "Author": "Cat,,",
+    "Version": "1.0.1",
+    "AssemblyName": "AntiHantacoreSpray.dll",
+    "EntryMethod": "AntiHantacoreSpray.Main.Load"
+}
