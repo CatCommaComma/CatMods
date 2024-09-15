@@ -1,0 +1,9 @@
+﻿{
+    "Id": "NoMoreCollision",
+    "DisplayName": "No More Collision",
+    "Author": "cat,,",
+    "Version": "1.0.0",
+    "AssemblyName": "NoMoreCollision.dll",
+    "EntryMethod": "NoMoreCollision.Main.Load",
+    "HomePage": "https://www.nexusmods.com/strandeddeep/mods/211"
+}

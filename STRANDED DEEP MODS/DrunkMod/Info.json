@@ -1,0 +1,9 @@
+﻿{
+    "Id": "StrandedDeepDrunkMod",
+    "DisplayName": "Drunk Mod",
+    "Author": "Cat,,",
+    "Version": "2.1.2",
+    "AssemblyName": "FoodRestoresHealth.dll",
+    "EntryMethod": "FoodRestoresHealth.Main.Load",
+    "HomePage": "https://www.nexusmods.com/strandeddeep/mods/204"
+}

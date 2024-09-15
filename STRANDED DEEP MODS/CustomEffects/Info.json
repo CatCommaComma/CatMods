@@ -1,0 +1,9 @@
+﻿{
+    "Id": "CustomEffects",
+    "DisplayName": "Custom Effects",
+    "Author": "Cat,,",
+    "Version": "1.1.0",
+    "AssemblyName": "CustomEffects.dll",
+    "EntryMethod": "CustomEffects.Main.Load",
+    "HomePage": "https://www.nexusmods.com/strandeddeep/mods/196"
+}
